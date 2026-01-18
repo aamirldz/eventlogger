@@ -1,25 +1,79 @@
-
 import os
-import sqlite3
 import json
 import io
-import queue
-import threading
-import time
-import socket
 import datetime
+import time
 from functools import wraps
 
 import flask
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, send_from_directory
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, Response
 import werkzeug.utils
 
 # QR Code generation
 import qrcode
+from a2wsgi import ASGIMiddleware
 
 # Initialize Flask App
 app = Flask(__name__)
-app.secret_key = "super_secure_secret_key"  # Change this for production!
+app.secret_key = os.environ.get("SECRET_KEY", "super_secure_secret_key")
+
+# Cloudflare Environment Global (set during each fetch)
+worker_env = None
+
+# ============================
+# CLOUDFLARE D1 ADAPTER
+# ============================
+
+class D1Cursor:
+    def __init__(self, db, query, params=None):
+        self.db = db
+        self.query = query
+        self.params = params or []
+        self._result = None
+
+    def _get_result(self):
+        if self._result is None:
+            stmt = self.db.prepare(self.query).bind(*self.params)
+            self._result = stmt.all()
+        return self._result
+
+    def fetchall(self):
+        res = self._get_result()
+        # Transform results to list of dicts to mimic sqlite3.Row
+        return [dict(row) for row in res.results]
+
+    def fetchone(self):
+        res = self._get_result()
+        if res.results and len(res.results) > 0:
+            return dict(res.results[0])
+        return None
+
+class D1Connection:
+    def __init__(self, db):
+        self.db = db
+
+    def execute(self, query, params=None):
+        if params is None:
+            params = []
+        # Convert ? placeholders to ?1, ?2 for D1 if needed, 
+        # but D1 supports ? or ?1. Let's stick to ?
+        return D1Cursor(self.db, query, params)
+
+    def commit(self):
+        # D1 commits automatically on statement execution
+        pass
+
+    def close(self):
+        pass
+
+def get_db_connection():
+    if worker_env is None or not hasattr(worker_env, 'DB'):
+        # Fallback for local testing if not in worker context
+        import sqlite3
+        conn = sqlite3.connect("event.db")
+        conn.row_factory = sqlite3.Row
+        return conn
+    return D1Connection(worker_env.DB)
 
 # Configuration
 UPLOAD_FOLDER = "uploads"
@@ -146,33 +200,7 @@ def inject_user():
             user = dict(user)
     return dict(user=user)
 
-# ============================
-# BACKGROUND WORKER
-# ============================
-
-def log_consumer():
-    print("CONSUMER THREAD: Running...")
-    while True:
-        try:
-            log_data = log_queue.get()
-            if not log_data:
-                continue
-
-            conn = get_db_connection()
-            conn.execute(
-                "INSERT INTO logs (event_id, data, timestamp) VALUES (?, ?, ?)",
-                (
-                    log_data["event_id"],
-                    json.dumps(log_data["data"]),
-                    log_data["timestamp"],
-                ),
-            )
-            conn.commit()
-            conn.close()
-            # print(f"CONSUMER: Saved log for event {log_data['event_id']}")
-        except Exception as e:
-            print("CONSUMER ERROR:", e)
-        time.sleep(0.1)
+# Removed Threading for Cloudflare Workers
 
 # ============================
 # AUTH DECORATORS
@@ -438,23 +466,21 @@ def superadmin_profile():
 @login_required
 @superadmin_required
 def superadmin_update_profile():
-    name = request.form.get('name') # Wait, superadmin template doesnt edit name/phone/address in my new template?
-    # Ah, I copied the original superadmin profile template which ONLY had username/password/pic.
-    # The ADMIN profile had all fields.
-    # Let's check original template again.
-    # Lines 724+: ONLY username, password, profile_pic.
-    # Okay.
-    
     password = request.form.get('password')
-    
     file = request.files.get('profile_pic')
     pic_filename = None
     
     if file and allowed_file(file.filename):
         filename = werkzeug.utils.secure_filename(file.filename)
-        # Unique func
         filename = f"{session['username']}_{int(time.time())}_{filename}"
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        
+        # Save to R2 instead of local folder
+        if worker_env and hasattr(worker_env, 'BUCKET'):
+            file_data = file.read()
+            worker_env.BUCKET.put(filename, file_data)
+        else:
+            # Local fallback for dev
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         pic_filename = filename
         
     conn = get_db_connection()
@@ -524,7 +550,12 @@ def staff_update_profile():
     if file and allowed_file(file.filename):
         filename = werkzeug.utils.secure_filename(file.filename)
         filename = f"{session['username']}_{int(time.time())}_{filename}"
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        # Save to R2 instead of local folder
+        if worker_env and hasattr(worker_env, 'BUCKET'):
+            file_data = file.read()
+            worker_env.BUCKET.put(filename, file_data)
+        else:
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
         pic_filename = filename
         
     conn = get_db_connection()
@@ -629,15 +660,14 @@ def attend_event(event_id):
         # Get current timestamp
         current_time = datetime.datetime.now()
         
-        # Add to queue
-        log_entry = {
-            "event_id": event_id,
-            "data": data,
-            "timestamp": current_time.isoformat()
-        }
-        log_queue.put(log_entry)
-        
+        # Cloudflare Direct Write (instead of queue)
+        conn.execute(
+            "INSERT INTO logs (event_id, data, timestamp) VALUES (?, ?, ?)",
+            (event_id, json.dumps(data), current_time.isoformat())
+        )
+        conn.commit()
         conn.close()
+        
         # Redirect to success page with formatted timestamp
         formatted_time = current_time.strftime('%B %d, %Y at %I:%M:%S %p')
         return render_template('attend_success.html', event=event, timestamp=formatted_time)
@@ -660,10 +690,6 @@ def qr_code_route(event_id):
     img.save(byte_io, 'PNG')
     byte_io.seek(0)
     return send_file(byte_io, mimetype='image/png')
-
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/api/event/<int:event_id>/logs')
 @login_required
@@ -691,20 +717,42 @@ def api_event_logs(event_id):
         
     return jsonify({'logs': logs})
 
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    if worker_env and hasattr(worker_env, 'BUCKET'):
+        obj = worker_env.BUCKET.get(filename)
+        if obj:
+            # Extract content type or default to image/jpeg
+            content_type = "image/jpeg"
+            if filename.endswith(".png"): content_type = "image/png"
+            elif filename.endswith(".gif"): content_type = "image/gif"
+            
+            # Read bytes from the ReadableStream-like object in Pyodide
+            return Response(obj.body, mimetype=content_type)
+        return "File not found", 404
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
 @app.route('/queue_status')
 @login_required
 def queue_status():
-    return jsonify({'size': log_queue.qsize()})
+    # Queue is removed in Workers, return 0
+    return jsonify({'size': 0})
 
-# Initialize logic unconditionally (for Gunicorn workers)
-init_db()
+# ============================
+# CLOUDFLARE WORKER ENTRY
+# ============================
 
-# Start consumer thread
-# Daemon threads are killed when the main process exits
-ct = threading.Thread(target=log_consumer, daemon=True)
-ct.start()
+class Default:
+    def __init__(self, env):
+        global worker_env
+        worker_env = env
+        self.asgi_app = ASGIMiddleware(app)
+
+    async def fetch(self, request, env):
+        global worker_env
+        worker_env = env
+        return await self.asgi_app(request, env)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5002))
-    # Disable debug in production (or rely on env vars)
     app.run(debug=True, host='0.0.0.0', port=port)

@@ -4,4 +4,4 @@ pillow
 qrcode
 itsdangerous
 click
-gunicorn
+a2wsgi
