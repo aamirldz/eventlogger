@@ -679,13 +679,15 @@ def api_event_logs(event_id):
 def queue_status():
     return jsonify({'size': log_queue.qsize()})
 
+# Initialize logic unconditionally (for Gunicorn workers)
+init_db()
+
+# Start consumer thread
+# Daemon threads are killed when the main process exits
+ct = threading.Thread(target=log_consumer, daemon=True)
+ct.start()
+
 if __name__ == '__main__':
-    # Initialize logic
-    init_db()
-    
-    # Start consumer
-    ct = threading.Thread(target=log_consumer, daemon=True)
-    ct.start()
-    
     port = int(os.environ.get("PORT", 5002))
+    # Disable debug in production (or rely on env vars)
     app.run(debug=True, host='0.0.0.0', port=port)
