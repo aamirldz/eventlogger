@@ -4,48 +4,46 @@ import io
 import datetime
 import time
 from functools import wraps
-from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from starlette.middleware.sessions import SessionMiddleware
+import flask
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file, Response
+import werkzeug.utils
+
+# QR Code generation
 import qrcode
+from a2wsgi import ASGIMiddleware
 
-# Initialize FastAPI App
-app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key=os.environ.get("SECRET_KEY", "super_secure_secret_key"))
-
-templates = Jinja2Templates(directory="templates")
+# Initialize Flask App
+app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "super_secure_secret_key")
 
 # Cloudflare Environment Global (set during each fetch)
 worker_env = None
 
 # ============================
-# CLOUDFLARE D1 ADAPTER (ASYNC)
+# CLOUDFLARE D1 ADAPTER
 # ============================
 
 class D1Cursor:
-    def __init__(self, db, query: str, params: List[Any] = None):
+    def __init__(self, db, query, params=None):
         self.db = db
         self.query = query
         self.params = params or []
         self._result = None
 
-    async def _get_result(self):
+    def _get_result(self):
         if self._result is None:
-            # D1 prepare().bind().all() is async in Workers Python
             stmt = self.db.prepare(self.query).bind(*self.params)
-            self._result = await stmt.all()
+            self._result = stmt.all()
         return self._result
 
-    async def fetchall(self) -> List[Dict[str, Any]]:
-        res = await self._get_result()
+    def fetchall(self):
+        res = self._get_result()
+        # Transform results to list of dicts to mimic sqlite3.Row
         return [dict(row) for row in res.results]
 
-    async def fetchone(self) -> Optional[Dict[str, Any]]:
-        res = await self._get_result()
+    def fetchone(self):
+        res = self._get_result()
         if res.results and len(res.results) > 0:
             return dict(res.results[0])
         return None
@@ -54,42 +52,34 @@ class D1Connection:
     def __init__(self, db):
         self.db = db
 
-    def execute(self, query: str, params: List[Any] = None):
+    def execute(self, query, params=None):
+        if params is None:
+            params = []
+        # Convert ? placeholders to ?1, ?2 for D1 if needed, 
+        # but D1 supports ? or ?1. Let's stick to ?
         return D1Cursor(self.db, query, params)
 
-    async def commit(self):
-        # D1 commits automatically
+    def commit(self):
+        # D1 commits automatically on statement execution
         pass
 
-    async def close(self):
+    def close(self):
         pass
 
-def get_db():
+def get_db_connection():
     if worker_env is None or not hasattr(worker_env, 'DB'):
-        # This shouldn't happen in production Workers
-        raise Exception("Database binding 'DB' not found in environment")
+        # Fallback for local testing if not in worker context
+        import sqlite3
+        conn = sqlite3.connect("event.db")
+        conn.row_factory = sqlite3.Row
+        return conn
     return D1Connection(worker_env.DB)
 
 # Configuration
 UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-BASE_URL = os.environ.get("BASE_URL", "https://eventlogger.pages.dev")
-
-def allowed_file(filename: str):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-# ============================
-# FILTERS & UTILS
-# ============================
-
-def timestamp_format(value: str):
-    try:
-        dt = datetime.datetime.fromisoformat(value)
-        return dt.strftime('%Y-%m-%d %H:%M:%S')
-    except:
-        return value
-
-templates.env.filters["timestamp_format"] = timestamp_format
 
 # Base URL for QR codes and event links (set in environment for production)
 # Example: BASE_URL=https://eventlogger-g6c5.onrender.com
@@ -171,89 +161,134 @@ def init_db():
     conn.close()
 
 # ============================
-# CONTEXT HELPERS
+# UTILS & FILTERS
 # ============================
 
-async def get_current_user(request: Request):
-    username = request.session.get('username')
-    if username:
-        conn = get_db()
-        user = await conn.execute("SELECT * FROM users WHERE username = ?", [username]).fetchone()
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.template_filter('timestamp_format')
+def timestamp_format(value):
+    try:
+        # Assuming ISO format string
+        dt = datetime.datetime.fromisoformat(value)
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+    except:
+        return value
+
+def get_ip_address():
+    try:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        return ip
+    except:
+        return "127.0.0.1"
+
+# ============================
+# CONTEXT PROCESSOR
+# ============================
+
+@app.context_processor
+def inject_user():
+    """Inject current user into all templates for header component."""
+    user = None
+    if 'username' in session:
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM users WHERE username = ?", (session['username'],)).fetchone()
+        conn.close()
         if user:
-            return dict(user)
-    return None
+            user = dict(user)
+    return dict(user=user)
 
-# Access control decorators (FastAPI style)
-async def login_required(request: Request):
-    if 'username' not in request.session:
-        # FastAPI doesn't have RedirectResponse in Depends easily with Flash,
-        # but we can raise an exception or handle it.
-        raise HTTPException(status_code=303, detail="Login required", headers={"Location": "/login"})
-    return request.session['username']
+# Removed Threading for Cloudflare Workers
 
-async def superadmin_required(request: Request):
-    if request.session.get('role') != 'superadmin':
-        raise HTTPException(status_code=303, detail="Superadmin only", headers={"Location": "/login"})
-    return request.session['username']
+# ============================
+# AUTH DECORATORS
+# ============================
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'username' not in session:
+            flash("Please login first.", "error")
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+def superadmin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'role' not in session or session['role'] != 'superadmin':
+            flash("Access denied. Superadmin only.", "error")
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
 # ============================
 # ROUTES
 # ============================
 
-@app.get("/", response_class=HTMLResponse)
-async def login_page(request: Request):
-    user = await get_current_user(request)
-    return templates.TemplateResponse("login.html", {"request": request, "user": user})
-
-@app.post("/")
-async def login(request: Request, username: str = Form(...), password: str = Form(...)):
-    conn = get_db()
-    user = await conn.execute("SELECT * FROM users WHERE username = ?", [username]).fetchone()
-    
-    if user and user['password'] == password: # In prod use hash!
-        if user['approved'] == 0:
-            return templates.TemplateResponse("pending.html", {"request": request, "user": None})
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
         
-        request.session['username'] = user['username']
-        request.session['role'] = user['role']
-        request.session['name'] = user['name']
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        conn.close()
         
-        if user['role'] == 'superadmin':
-            return RedirectResponse(url="/superadmin", status_code=303)
+        if user and user['password'] == password: # In prod use hash!
+            if user['approved'] == 0:
+                return render_template('pending.html')
+            
+            session['username'] = user['username']
+            session['role'] = user['role']
+            session['name'] = user['name']
+            
+            if user['role'] == 'superadmin':
+                return redirect(url_for('superadmin_dashboard'))
+            else:
+                return redirect(url_for('staff_events'))
         else:
-            return RedirectResponse(url="/staff/events", status_code=303)
-    else:
-        # Simple error handling for now as FastAPI doesn't have Flask-style flash messages by default
-        return templates.TemplateResponse("login.html", {"request": request, "user": None, "error": "Invalid credentials"})
+            flash("Invalid credentials.", "error")
+            
+    return render_template('login.html')
 
-@app.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request):
-    user = await get_current_user(request)
-    return templates.TemplateResponse("register.html", {"request": request, "user": user})
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        name = request.form['name']
+        phone = request.form['phone']
+        address = request.form['address']
+        
+        conn = get_db_connection()
+        existing = conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone()
+        if existing:
+            flash("Username already taken.", "error")
+            conn.close()
+            return render_template('register.html')
+        
+        try:
+            conn.execute("INSERT INTO users (username, password, role, name, phone, address, approved) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                         (username, password, 'staff', name, phone, address, 0)) # Default role is staff, pending approval
+            conn.commit()
+            flash("Registration successful! Please wait for approval.", "success")
+            return redirect(url_for('login'))
+        except Exception as e:
+            flash(f"Error: {e}", "error")
+        finally:
+            conn.close()
+            
+    return render_template('register.html')
 
-@app.post("/register")
-async def register(request: Request, 
-                   username: str = Form(...), 
-                   password: str = Form(...), 
-                   name: str = Form(...), 
-                   phone: str = Form(...), 
-                   address: str = Form(...)):
-    conn = get_db()
-    existing = await conn.execute("SELECT 1 FROM users WHERE username = ?", [username]).fetchone()
-    if existing:
-        return templates.TemplateResponse("register.html", {"request": request, "user": None, "error": "Username taken"})
-    
-    try:
-        await conn.execute("INSERT INTO users (username, password, role, name, phone, address, approved) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                     [username, password, 'staff', name, phone, address, 0])
-        return RedirectResponse(url="/", status_code=303)
-    except Exception as e:
-        return templates.TemplateResponse("register.html", {"request": request, "user": None, "error": str(e)})
-
-@app.get("/logout")
-async def logout(request: Request):
-    request.session.clear()
-    return RedirectResponse(url="/", status_code=303)
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash("Logged out successfully.", "success")
+    return redirect(url_for('login'))
 
 # --- SUPERADMIN ROUTES ---
 
@@ -302,122 +337,106 @@ def superadmin_approve_staff(username):
     conn = get_db_connection()
     conn.execute("UPDATE users SET approved = 1 WHERE username = ?", (username,))
     conn.commit()
-@app.get("/superadmin", response_class=HTMLResponse)
-async def superadmin_dashboard(request: Request, _ = Depends(superadmin_required)):
-    conn = get_db()
-    pending_staff = await conn.execute("SELECT * FROM users WHERE role = 'staff' AND approved = 0").fetchall()
-    approved_staff = await conn.execute("SELECT * FROM users WHERE role = 'staff' AND approved = 1").fetchall()
-    events = await conn.execute("SELECT * FROM events").fetchall()
-    
-    user = await get_current_user(request)
-    return templates.TemplateResponse("superadmin/dashboard.html", {
-        "request": request,
-        "user": user,
-        "pending_staff": pending_staff,
-        "approved_staff": approved_staff,
-        "events": events
-    })
+    conn.close()
+    flash(f"Staff '{username}' approved.", "success")
+    return redirect(url_for('superadmin_dashboard'))
 
-@app.get("/superadmin/approve/{username}")
-async def approve_user(username: str, _ = Depends(superadmin_required)):
-    conn = get_db()
-    await conn.execute("UPDATE users SET approved = 1 WHERE username = ?", [username])
-    return RedirectResponse(url="/superadmin", status_code=303)
-
-@app.get("/superadmin/reject/{username}")
-async def reject_user(username: str, _ = Depends(superadmin_required)):
-    conn = get_db()
-    await conn.execute("DELETE FROM users WHERE username = ?", [username])
-    return RedirectResponse(url="/superadmin", status_code=303)
-
-@app.get("/superadmin/manage_staff/{event_id}", response_class=HTMLResponse)
-async def manage_staff(request: Request, event_id: int, _ = Depends(superadmin_required)):
-    conn = get_db()
-    event = await conn.execute("SELECT * FROM events WHERE event_id = ?", [event_id]).fetchone()
-    
-    assigned_staff = await conn.execute("""
-        SELECT u.username, u.name 
-        FROM users u 
-        JOIN event_admins ea ON u.username = ea.admin_username 
-        WHERE ea.event_id = ?
-    """, [event_id]).fetchall()
-    
-    unassigned_staff = await conn.execute("""
-        SELECT username, name FROM users 
-        WHERE role = 'staff' AND approved = 1 
-        AND username NOT IN (SELECT admin_username FROM event_admins WHERE event_id = ?)
-    """, [event_id]).fetchall()
-    
-    user = await get_current_user(request)
-    return templates.TemplateResponse("superadmin/manage_staff.html", {
-        "request": request,
-        "user": user,
-        "event": event,
-        "assigned_staff": assigned_staff,
-        "unassigned_staff": unassigned_staff
-    })
-
-@app.post("/superadmin/assign_staff")
-async def assign_staff(event_id: int = Form(...), username: str = Form(...), _ = Depends(superadmin_required)):
-    conn = get_db()
-    await conn.execute("INSERT INTO event_admins (event_id, admin_username) VALUES (?, ?)", [event_id, username])
-    return RedirectResponse(url=f"/superadmin/manage_staff/{event_id}", status_code=303)
-
-@app.get("/superadmin/unassign_staff/{event_id}/{username}")
-async def unassign_staff(event_id: int, username: str, _ = Depends(superadmin_required)):
-    conn = get_db()
-    await conn.execute("DELETE FROM event_admins WHERE event_id = ? AND admin_username = ?", [event_id, username])
-    return RedirectResponse(url=f"/superadmin/manage_staff/{event_id}", status_code=303)
+@app.route('/superadmin/delete/<username>', methods=['POST'])
+@login_required
+@superadmin_required
+def superadmin_delete_staff(username):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM users WHERE username = ?", (username,))
+    conn.execute("DELETE FROM event_admins WHERE admin_username = ?", (username,)) # Cleanup assignments
+    conn.commit()
+    conn.close()
+    flash(f"Staff '{username}' deleted/rejected.", "success")
+    return redirect(url_for('superadmin_dashboard'))
 
 @app.route('/superadmin/event/delete/<int:event_id>', methods=['POST'])
-@app.post("/superadmin/event/add")
-async def add_event(event_name: str = Form(...), _ = Depends(superadmin_required)):
-    conn = get_db()
-    await conn.execute("INSERT INTO events (event_name) VALUES (?)", [event_name])
-    return RedirectResponse(url="/superadmin", status_code=303)
+@login_required
+@superadmin_required
+def superadmin_delete_event(event_id):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM events WHERE event_id = ?", (event_id,))
+    conn.execute("DELETE FROM event_fields WHERE event_id = ?", (event_id,))
+    conn.execute("DELETE FROM event_admins WHERE event_id = ?", (event_id,))
+    conn.execute("DELETE FROM logs WHERE event_id = ?", (event_id,))
+    conn.commit()
+    conn.close()
+    flash("Event deleted.", "success")
+    return redirect(url_for('superadmin_dashboard'))
 
-@app.get("/superadmin/event/edit/{event_id}", response_class=HTMLResponse)
-async def edit_event_page(request: Request, event_id: int, _ = Depends(superadmin_required)):
-    conn = get_db()
-    event = await conn.execute("SELECT * FROM events WHERE event_id = ?", [event_id]).fetchone()
-    fields = await conn.execute("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order", [event_id]).fetchall()
+@app.route('/superadmin/event/staff/<int:event_id>')
+@login_required
+@superadmin_required
+def superadmin_manage_event_staff(event_id):
+    conn = get_db_connection()
+    event = conn.execute("SELECT * FROM events WHERE event_id = ?", (event_id,)).fetchone()
+    if not event:
+        conn.close()
+        flash("Event not found", "error")
+        return redirect(url_for('superadmin_dashboard'))
+        
+    # Get assigned staff
+    assigned_staff = conn.execute("""
+        SELECT u.* FROM users u 
+        JOIN event_admins ea ON u.username = ea.admin_username 
+        WHERE ea.event_id = ?
+    """, (event_id,)).fetchall()
     
-    user = await get_current_user(request)
-    return templates.TemplateResponse("superadmin/edit_form.html", {
-        "request": request,
-        "user": user,
-        "event": event,
-        "fields": fields
-    })
+    # Get available staff (all staff - assigned)
+    unassigned_staff = conn.execute("""
+        SELECT * FROM users 
+        WHERE role != 'superadmin' AND approved = 1 
+        AND username NOT IN (SELECT admin_username FROM event_admins WHERE event_id = ?)
+    """, (event_id,)).fetchall()
+    
+    conn.close()
+    return render_template('superadmin/manage_staff.html', event=event, assigned_staff=assigned_staff, unassigned_staff=unassigned_staff)
 
-@app.post("/superadmin/event/update_fields/{event_id}")
-async def update_event_fields(request: Request, event_id: int, _ = Depends(superadmin_required)):
-    form_data = await request.form()
-    conn = get_db()
-    
-    # Simple strategy: delete and recreate fields for this event
-    await conn.execute("DELETE FROM event_fields WHERE event_id = ?", [event_id])
-    
-    labels = form_data.getlist('field_label[]')
-    types = form_data.getlist('field_type[]')
-    requireds = form_data.getlist('is_required[]')
-    
-    for i in range(len(labels)):
-        if labels[i].strip():
-            await conn.execute("""
-                INSERT INTO event_fields (event_id, field_label, field_type, is_required, field_order)
-                VALUES (?, ?, ?, ?, ?)
-            """, [event_id, labels[i], types[i], 1 if str(requireds[i]) == '1' else 0, i])
-            
-    return RedirectResponse(url=f"/superadmin/event/edit/{event_id}", status_code=303)
+@app.route('/superadmin/event/staff/add/<int:event_id>/<username>', methods=['POST'])
+@login_required
+@superadmin_required
+def superadmin_add_event_staff(event_id, username):
+    conn = get_db_connection()
+    conn.execute("INSERT INTO event_admins (event_id, admin_username) VALUES (?, ?)", (event_id, username))
+    conn.commit()
+    conn.close()
+    flash(f"Assigned {username} to event.", "success")
+    return redirect(url_for('superadmin_manage_event_staff', event_id=event_id))
 
-@app.post("/superadmin/event/delete/{event_id}")
-async def delete_event(event_id: int, _ = Depends(superadmin_required)):
-    conn = get_db()
-    await conn.execute("DELETE FROM events WHERE event_id = ?", [event_id])
-    await conn.execute("DELETE FROM event_fields WHERE event_id = ?", [event_id])
-    await conn.execute("DELETE FROM event_admins WHERE event_id = ?", [event_id])
-    return RedirectResponse(url="/superadmin", status_code=303)
+@app.route('/superadmin/event/staff/remove/<int:event_id>/<username>', methods=['POST'])
+@login_required
+@superadmin_required
+def superadmin_remove_event_staff(event_id, username):
+    conn = get_db_connection()
+    conn.execute("DELETE FROM event_admins WHERE event_id = ? AND admin_username = ?", (event_id, username))
+    conn.commit()
+    conn.close()
+    flash(f"Removed {username} from event.", "success")
+    return redirect(url_for('superadmin_manage_event_staff', event_id=event_id))
+
+@app.route('/superadmin/event/edit/<int:event_id>', methods=['GET', 'POST'])
+@login_required
+@superadmin_required
+def superadmin_edit_event_form(event_id):
+    conn = get_db_connection()
+    event = conn.execute("SELECT * FROM events WHERE event_id = ?", (event_id,)).fetchone()
+    
+    if request.method == 'POST':
+        field_label = request.form['field_label']
+        field_type = request.form['field_type']
+        is_required = 1 if 'is_required' in request.form else 0
+        
+        conn.execute("INSERT INTO event_fields (event_id, field_label, field_type, is_required) VALUES (?, ?, ?, ?)",
+                     (event_id, field_label, field_type, is_required))
+        conn.commit()
+        flash("Field added.", "success")
+        
+    fields = conn.execute("SELECT * FROM event_fields WHERE event_id = ?", (event_id,)).fetchall()
+    conn.close()
+    return render_template('superadmin/edit_form.html', event=event, fields=fields)
 
 @app.route('/superadmin/field/delete/<int:field_id>', methods=['POST'])
 @login_required
@@ -495,6 +514,95 @@ def staff_events():
         JOIN event_admins ea ON e.event_id = ea.event_id 
         WHERE ea.admin_username = ?
     """, (session['username'],)).fetchall()
+    
+    # Process for URL display
+    # We need to construct the full URL for the attendee form
+    events_list = []
+    # Use BASE_URL if set, otherwise fall back to request.host_url
+    host_url = BASE_URL if BASE_URL else request.host_url.rstrip('/')
+    for e in events:
+        evt = dict(e)
+        evt['url'] = f"{host_url}/attend/{e['event_id']}"
+        events_list.append(evt)
+        
+    conn.close()
+    return render_template('staff/events.html', events=events_list)
+
+@app.route('/staff/profile')
+@login_required
+def staff_profile():
+    conn = get_db_connection()
+    user = conn.execute("SELECT * FROM users WHERE username = ?", (session['username'],)).fetchone()
+    conn.close()
+    return render_template('staff/profile.html', user=user)
+
+@app.route('/staff/update', methods=['POST'])
+@login_required
+def staff_update_profile():
+    name = request.form['name']
+    phone = request.form['phone']
+    address = request.form['address']
+    password = request.form.get('password')
+    
+    file = request.files.get('profile_pic')
+    pic_filename = None
+     
+    if file and allowed_file(file.filename):
+        filename = werkzeug.utils.secure_filename(file.filename)
+        filename = f"{session['username']}_{int(time.time())}_{filename}"
+        # Save to R2 instead of local folder
+        if worker_env and hasattr(worker_env, 'BUCKET'):
+            file_data = file.read()
+            worker_env.BUCKET.put(filename, file_data)
+        else:
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+        pic_filename = filename
+        
+    conn = get_db_connection()
+    query = "UPDATE users SET name=?, phone=?, address=?"
+    params = [name, phone, address]
+    
+    if password:
+        query += ", password=?"
+        params.append(password)
+        
+    if pic_filename:
+        query += ", profile_pic=?"
+        params.append(pic_filename)
+        
+    query += " WHERE username=?"
+    params.append(session['username'])
+    
+    conn.execute(query, tuple(params))
+    conn.commit()
+    conn.close()
+    flash("Profile updated.", "success")
+    return redirect(url_for('staff_profile'))
+    
+@app.route('/staff/event/<int:event_id>/logs')
+@login_required
+def view_logs(event_id):
+    # Check access
+    if session['role'] != 'superadmin':
+        conn = get_db_connection()
+        access = conn.execute("SELECT 1 FROM event_admins WHERE event_id = ? AND admin_username = ?", 
+                              (event_id, session['username'])).fetchone()
+        conn.close()
+        if not access:
+            flash("You do not have access to this event.", "error")
+            return redirect(url_for('staff_events'))
+
+    conn = get_db_connection()
+    event = conn.execute("SELECT * FROM events WHERE event_id = ?", (event_id,)).fetchone()
+    fields = conn.execute("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC", (event_id,)).fetchall()
+    
+    # Get initial logs (limit 50?)
+    logs_raw = conn.execute("SELECT * FROM logs WHERE event_id = ? ORDER BY log_id DESC LIMIT 50", (event_id,)).fetchall()
+    conn.close()
+    
+    # Process logs (data is JSON)
+    logs = []
+    for l in logs_raw:
         ld = dict(l)
         try:
             ld['data'] = json.loads(ld['data'])
@@ -578,13 +686,12 @@ def qr_code_route(event_id):
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
     
-    img_byte_arr = io.BytesIO()
-    img.save(img_byte_arr, format='PNG')
-    img_byte_arr.seek(0)
-    
-    return StreamingResponse(img_byte_arr, media_type="image/png")
+    byte_io = io.BytesIO()
+    img.save(byte_io, 'PNG')
+    byte_io.seek(0)
+    return send_file(byte_io, mimetype='image/png')
 
-@app.get("/api/event/{event_id}/logs")
+@app.route('/api/event/<int:event_id>/logs')
 @login_required
 def api_event_logs(event_id):
     since_id = request.args.get('since', 0, type=int)
@@ -610,19 +717,20 @@ def api_event_logs(event_id):
         
     return jsonify({'logs': logs})
 
-@app.get("/uploads/{filename}")
-async def uploaded_file(filename: str):
-    try:
-        # Fetch from R2
-        object = await worker_env.BUCKET.get(filename)
-        if object is None:
-            raise HTTPException(status_code=404, detail="File not found")
-        
-        # Stream the object back
-        # The object has a 'body' which is a stream-like object in Pyodide
-        return StreamingResponse(io.BytesIO(await object.arrayBuffer()), media_type="image/jpeg")
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    if worker_env and hasattr(worker_env, 'BUCKET'):
+        obj = worker_env.BUCKET.get(filename)
+        if obj:
+            # Extract content type or default to image/jpeg
+            content_type = "image/jpeg"
+            if filename.endswith(".png"): content_type = "image/png"
+            elif filename.endswith(".gif"): content_type = "image/gif"
+            
+            # Read bytes from the ReadableStream-like object in Pyodide
+            return Response(obj.body, mimetype=content_type)
+        return "File not found", 404
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/queue_status')
 @login_required
@@ -631,19 +739,19 @@ def queue_status():
     return jsonify({'size': 0})
 
 # ============================
-# CLOUDFLARE WORKER ENTRY POINT
+# CLOUDFLARE WORKER ENTRY
 # ============================
 
 class Default:
     def __init__(self, env):
         global worker_env
         worker_env = env
+        self.asgi_app = ASGIMiddleware(app)
 
     async def fetch(self, request, env):
         global worker_env
         worker_env = env
-        # FastAPI is natively ASGI, so we just call the app
-        return await app(request, env)
+        return await self.asgi_app(request, env)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5002))

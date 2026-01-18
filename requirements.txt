@@ -1,6 +1,7 @@
-fastapi
-jinja2
+flask
+werkzeug
 pillow
 qrcode
-python-multipart
+itsdangerous
 click
+a2wsgi
