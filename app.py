@@ -27,6 +27,10 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
+# Base URL for QR codes and event links (set in environment for production)
+# Example: BASE_URL=https://eventlogger-g6c5.onrender.com
+BASE_URL = os.environ.get("BASE_URL", None)
+
 # Global Queue for logs
 log_queue = queue.Queue()
 
@@ -127,6 +131,22 @@ def get_ip_address():
         return "127.0.0.1"
 
 # ============================
+# CONTEXT PROCESSOR
+# ============================
+
+@app.context_processor
+def inject_user():
+    """Inject current user into all templates for header component."""
+    user = None
+    if 'username' in session:
+        conn = get_db_connection()
+        user = conn.execute("SELECT * FROM users WHERE username = ?", (session['username'],)).fetchone()
+        conn.close()
+        if user:
+            user = dict(user)
+    return dict(user=user)
+
+# ============================
 # BACKGROUND WORKER
 # ============================
 
@@ -201,7 +221,7 @@ def login():
             if user['role'] == 'superadmin':
                 return redirect(url_for('superadmin_dashboard'))
             else:
-                return redirect(url_for('admin_events'))
+                return redirect(url_for('staff_events'))
         else:
             flash("Invalid credentials.", "error")
             
@@ -225,7 +245,7 @@ def register():
         
         try:
             conn.execute("INSERT INTO users (username, password, role, name, phone, address, approved) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                         (username, password, 'admin', name, phone, address, 0)) # Default role is admin, pending approval
+                         (username, password, 'staff', name, phone, address, 0)) # Default role is staff, pending approval
             conn.commit()
             flash("Registration successful! Please wait for approval.", "success")
             return redirect(url_for('login'))
@@ -250,17 +270,15 @@ def logout():
 def superadmin_dashboard():
     conn = get_db_connection()
     
-    # Fetch pending admins
-    pending_admins = conn.execute("SELECT * FROM users WHERE role != 'superadmin' AND approved = 0").fetchall()
+    # Fetch pending staff
+    pending_staff = conn.execute("SELECT * FROM users WHERE role != 'superadmin' AND approved = 0").fetchall()
     
-    # Fetch approved admins
-    approved_admins = conn.execute("SELECT * FROM users WHERE role != 'superadmin' AND approved = 1").fetchall()
+    # Fetch approved staff
+    approved_staff = conn.execute("SELECT * FROM users WHERE role != 'superadmin' AND approved = 1").fetchall()
     
-    # Fetch all events with admin count
-    # Since we can't do complex joins cleanly in one liner sometimes in SQLite without care, let's do simple join
-    # "SELECT e.event_id, e.event_name, COUNT(ea.id) as admin_count FROM events e LEFT JOIN event_admins ea ON e.event_id = ea.event_id GROUP BY e.event_id"
+    # Fetch all events with staff count
     all_events = conn.execute("""
-        SELECT e.*, COUNT(ea.id) as admin_count 
+        SELECT e.*, COUNT(ea.id) as staff_count 
         FROM events e 
         LEFT JOIN event_admins ea ON e.event_id = ea.event_id 
         GROUP BY e.event_id
@@ -268,8 +286,8 @@ def superadmin_dashboard():
     
     conn.close()
     return render_template('superadmin/dashboard.html', 
-                           pending_admins=pending_admins, 
-                           approved_admins=approved_admins, 
+                           pending_staff=pending_staff, 
+                           approved_staff=approved_staff, 
                            all_events=all_events)
 
 @app.route('/superadmin/event/create', methods=['POST'])
@@ -287,24 +305,24 @@ def superadmin_create_event():
 @app.route('/superadmin/approve/<username>', methods=['POST'])
 @login_required
 @superadmin_required
-def superadmin_approve_admin(username):
+def superadmin_approve_staff(username):
     conn = get_db_connection()
     conn.execute("UPDATE users SET approved = 1 WHERE username = ?", (username,))
     conn.commit()
     conn.close()
-    flash(f"Admin '{username}' approved.", "success")
+    flash(f"Staff '{username}' approved.", "success")
     return redirect(url_for('superadmin_dashboard'))
 
 @app.route('/superadmin/delete/<username>', methods=['POST'])
 @login_required
 @superadmin_required
-def superadmin_delete_admin(username):
+def superadmin_delete_staff(username):
     conn = get_db_connection()
     conn.execute("DELETE FROM users WHERE username = ?", (username,))
     conn.execute("DELETE FROM event_admins WHERE admin_username = ?", (username,)) # Cleanup assignments
     conn.commit()
     conn.close()
-    flash(f"User '{username}' deleted/rejected.", "success")
+    flash(f"Staff '{username}' deleted/rejected.", "success")
     return redirect(url_for('superadmin_dashboard'))
 
 @app.route('/superadmin/event/delete/<int:event_id>', methods=['POST'])
@@ -321,10 +339,10 @@ def superadmin_delete_event(event_id):
     flash("Event deleted.", "success")
     return redirect(url_for('superadmin_dashboard'))
 
-@app.route('/superadmin/event/admins/<int:event_id>')
+@app.route('/superadmin/event/staff/<int:event_id>')
 @login_required
 @superadmin_required
-def superadmin_manage_event_admins(event_id):
+def superadmin_manage_event_staff(event_id):
     conn = get_db_connection()
     event = conn.execute("SELECT * FROM events WHERE event_id = ?", (event_id,)).fetchone()
     if not event:
@@ -332,45 +350,44 @@ def superadmin_manage_event_admins(event_id):
         flash("Event not found", "error")
         return redirect(url_for('superadmin_dashboard'))
         
-    # Get assigned admins
-    assigned_admins = conn.execute("""
+    # Get assigned staff
+    assigned_staff = conn.execute("""
         SELECT u.* FROM users u 
         JOIN event_admins ea ON u.username = ea.admin_username 
         WHERE ea.event_id = ?
     """, (event_id,)).fetchall()
     
-    # Get available admins (all admins - assigned)
-    # Using EXCEPT or NOT IN
-    unassigned_admins = conn.execute("""
+    # Get available staff (all staff - assigned)
+    unassigned_staff = conn.execute("""
         SELECT * FROM users 
         WHERE role != 'superadmin' AND approved = 1 
         AND username NOT IN (SELECT admin_username FROM event_admins WHERE event_id = ?)
     """, (event_id,)).fetchall()
     
     conn.close()
-    return render_template('superadmin/manage_admins.html', event=event, assigned_admins=assigned_admins, unassigned_admins=unassigned_admins)
+    return render_template('superadmin/manage_staff.html', event=event, assigned_staff=assigned_staff, unassigned_staff=unassigned_staff)
 
-@app.route('/superadmin/event/admins/add/<int:event_id>/<username>', methods=['POST'])
+@app.route('/superadmin/event/staff/add/<int:event_id>/<username>', methods=['POST'])
 @login_required
 @superadmin_required
-def superadmin_add_event_admin(event_id, username):
+def superadmin_add_event_staff(event_id, username):
     conn = get_db_connection()
     conn.execute("INSERT INTO event_admins (event_id, admin_username) VALUES (?, ?)", (event_id, username))
     conn.commit()
     conn.close()
     flash(f"Assigned {username} to event.", "success")
-    return redirect(url_for('superadmin_manage_event_admins', event_id=event_id))
+    return redirect(url_for('superadmin_manage_event_staff', event_id=event_id))
 
-@app.route('/superadmin/event/admins/remove/<int:event_id>/<username>', methods=['POST'])
+@app.route('/superadmin/event/staff/remove/<int:event_id>/<username>', methods=['POST'])
 @login_required
 @superadmin_required
-def superadmin_remove_event_admin(event_id, username):
+def superadmin_remove_event_staff(event_id, username):
     conn = get_db_connection()
     conn.execute("DELETE FROM event_admins WHERE event_id = ? AND admin_username = ?", (event_id, username))
     conn.commit()
     conn.close()
     flash(f"Removed {username} from event.", "success")
-    return redirect(url_for('superadmin_manage_event_admins', event_id=event_id))
+    return redirect(url_for('superadmin_manage_event_staff', event_id=event_id))
 
 @app.route('/superadmin/event/edit/<int:event_id>', methods=['GET', 'POST'])
 @login_required
@@ -453,15 +470,15 @@ def superadmin_update_profile():
     return redirect(url_for('superadmin_profile'))
 
 
-# --- ADMIN ROUTES ---
+# --- STAFF ROUTES ---
 
-@app.route('/admin/events')
+@app.route('/staff/events')
 @login_required
-def admin_events():
+def staff_events():
     conn = get_db_connection()
     # If superadmin, show everything? Or redirect? Original code had different dashboards.
-    # If admin calls this, they see their assigned events.
-    if session['role'] != 'admin':
+    # If staff calls this, they see their assigned events.
+    if session['role'] != 'staff':
         # Superadmin can view too?
         pass # Allow them to see "My Events" (which might be none unless they assign themselves)
         
@@ -475,26 +492,27 @@ def admin_events():
     # Process for URL display
     # We need to construct the full URL for the attendee form
     events_list = []
-    host_url = request.host_url.rstrip('/')
+    # Use BASE_URL if set, otherwise fall back to request.host_url
+    host_url = BASE_URL if BASE_URL else request.host_url.rstrip('/')
     for e in events:
         evt = dict(e)
         evt['url'] = f"{host_url}/attend/{e['event_id']}"
         events_list.append(evt)
         
     conn.close()
-    return render_template('admin/events.html', events=events_list)
+    return render_template('staff/events.html', events=events_list)
 
-@app.route('/admin/profile')
+@app.route('/staff/profile')
 @login_required
-def admin_profile():
+def staff_profile():
     conn = get_db_connection()
     user = conn.execute("SELECT * FROM users WHERE username = ?", (session['username'],)).fetchone()
     conn.close()
-    return render_template('admin/profile.html', user=user)
+    return render_template('staff/profile.html', user=user)
 
-@app.route('/admin/update', methods=['POST'])
+@app.route('/staff/update', methods=['POST'])
 @login_required
-def admin_update_profile():
+def staff_update_profile():
     name = request.form['name']
     phone = request.form['phone']
     address = request.form['address']
@@ -528,9 +546,9 @@ def admin_update_profile():
     conn.commit()
     conn.close()
     flash("Profile updated.", "success")
-    return redirect(url_for('admin_profile'))
+    return redirect(url_for('staff_profile'))
     
-@app.route('/admin/event/<int:event_id>/logs')
+@app.route('/staff/event/<int:event_id>/logs')
 @login_required
 def view_logs(event_id):
     # Check access
@@ -541,7 +559,7 @@ def view_logs(event_id):
         conn.close()
         if not access:
             flash("You do not have access to this event.", "error")
-            return redirect(url_for('admin_events'))
+            return redirect(url_for('staff_events'))
 
     conn = get_db_connection()
     event = conn.execute("SELECT * FROM events WHERE event_id = ?", (event_id,)).fetchone()
@@ -567,9 +585,9 @@ def view_logs(event_id):
     total_count = conn.execute("SELECT COUNT(*) FROM logs WHERE event_id = ?", (event_id,)).fetchone()[0]
     conn.close()
     
-    return render_template('admin/logs.html', event=event, fields=fields, logs=logs, log_count=total_count)
+    return render_template('staff/logs.html', event=event, fields=fields, logs=logs, log_count=total_count)
 
-@app.route('/admin/log/delete/<int:log_id>/<int:event_id>', methods=['POST'])
+@app.route('/staff/log/delete/<int:log_id>/<int:event_id>', methods=['POST'])
 @login_required
 def delete_log(log_id, event_id):
     # Check access
@@ -580,7 +598,7 @@ def delete_log(log_id, event_id):
         conn.close()
         if not access:
             flash("Access denied.", "error")
-            return redirect(url_for('admin_events'))
+            return redirect(url_for('staff_events'))
             
     conn = get_db_connection()
     conn.execute("DELETE FROM logs WHERE log_id = ?", (log_id,))
@@ -631,7 +649,8 @@ def attend_event(event_id):
 
 @app.route('/qr_code/<int:event_id>')
 def qr_code_route(event_id):
-    host_url = request.host_url.rstrip('/')
+    # Use BASE_URL if set, otherwise fall back to request.host_url
+    host_url = BASE_URL if BASE_URL else request.host_url.rstrip('/')
     url = f"{host_url}/attend/{event_id}"
     
     qr = qrcode.QRCode(version=1, box_size=10, border=5)

@@ -1,0 +1,35 @@
+{#
+User Header Component - Shows profile pic/avatar with navigation
+Usage: {% include 'components/user_header.html' %}
+Required context: user (dict with username, name, role, profile_pic)
+#}
+<div class="flex items-center gap-4">
+    {# Dashboard Link based on role and current page #}
+    {% if user.role == 'superadmin' %}
+    {% if request.path != '/superadmin' %}
+    <a href="{{ url_for('superadmin_dashboard') }}"
+        class="text-sm text-blue-300 hover:text-white hover:underline">Dashboard</a>
+    {% endif %}
+    {% elif user.role == 'staff' %}
+    {% if not request.path.startswith('/staff/events') %}
+    <a href="{{ url_for('staff_events') }}" class="text-sm text-blue-300 hover:text-white hover:underline">My Events</a>
+    {% endif %}
+    {% endif %}
+
+    {# Profile Picture Avatar #}
+    {% set profile_link = url_for('superadmin_profile') if user.role == 'superadmin' else url_for('staff_profile') %}
+    {% if user.profile_pic %}
+    <a href="{{ profile_link }}" title="Edit Profile" class="profile-avatar-link">
+        <img src="{{ url_for('uploaded_file', filename=user.profile_pic) }}"
+            class="w-10 h-10 rounded-full border-2 border-blue-400 shadow-lg hover:opacity-80 transition-opacity object-cover">
+    </a>
+    {% else %}
+    <a href="{{ profile_link }}" title="Edit Profile"
+        class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg border-2 border-white/50 shadow-lg hover:opacity-80 transition-opacity profile-avatar-link">
+        {{ user.name[0].upper() if user.name else 'A' }}
+    </a>
+    {% endif %}
+
+    {# Logout Button #}
+    <a href="{{ url_for('logout') }}" class="btn btn-danger text-sm">Logout</a>
+</div>

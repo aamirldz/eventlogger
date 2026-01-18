@@ -7,3 +7,5 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.9.0
+      - key: BASE_URL
+        value: https://eventlogger-g6c5.onrender.com

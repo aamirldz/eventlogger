@@ -2,10 +2,14 @@
 
 {% block title %}Edit My Profile - QMS{% endblock %}
 
+{% block header_button %}
+{% include 'components/user_header.html' %}
+{% endblock %}
+
 {% block content %}
 <h2 class="text-3xl font-semibold mb-8 text-gray-100">Edit My Profile</h2>
 <div class="card p-8 md:p-10 max-w-2xl mx-auto">
-    <form action="{{ url_for('admin_update_profile') }}" method="POST" enctype="multipart/form-data">
+    <form action="{{ url_for('staff_update_profile') }}" method="POST" enctype="multipart/form-data">
         <div class="mb-6">
             <label class="block text-sm font-medium text-gray-300 mb-2">Profile Picture</label>
             <div class="flex items-center gap-5">
@@ -61,7 +65,7 @@
     </form>
 </div>
 <div class="mt-8 text-center">
-    <a href="{{ url_for('admin_events') }}" class="text-blue-400 hover:text-blue-300 hover:underline">&larr; Back to My
+    <a href="{{ url_for('staff_events') }}" class="text-blue-400 hover:text-blue-300 hover:underline">&larr; Back to My
         Events</a>
 </div>
 {% endblock %}

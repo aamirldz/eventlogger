@@ -3,14 +3,12 @@
 {% block title %}Event Logs - QMS{% endblock %}
 
 {% block header_button %}
-<div class="flex gap-4">
-    <a href="{{ url_for('logout') }}" class="btn btn-danger text-sm">Logout</a>
-</div>
+{% include 'components/user_header.html' %}
 {% endblock %}
 
 {% block content %}
 <div class="mb-6">
-    <a href="{{ url_for('admin_events') if user['role'] == 'admin' else url_for('superadmin_dashboard') }}"
+    <a href="{{ url_for('staff_events') if user['role'] == 'staff' else url_for('superadmin_dashboard') }}"
         class="text-blue-400 hover:text-blue-300 hover:underline">&larr; Back to Dashboard</a>
     <h2 class="text-3xl font-semibold mt-2 text-gray-100">Event Logs: <span class="text-blue-300">{{ event['event_name']
             }}</span></h2>
@@ -112,7 +110,7 @@
         });
 
         // Use standard URL construction if possible, or relative path
-        const deleteUrl = `/admin/log/delete/${log.log_id}/${EVENT_ID}`;
+        const deleteUrl = `/staff/log/delete/${log.log_id}/${EVENT_ID}`;
 
         return `
         <tr class="log-row log-row-new" data-log-id="${log.log_id}">
