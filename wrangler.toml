@@ -9,7 +9,7 @@ BASE_URL = "https://eventlogger.pages.dev"
 [[d1_databases]]
 binding = "DB"
 database_name = "eventlogger-db"
-database_id = "YOUR_D1_DATABASE_ID_HERE"
+database_id = "46a3bed7-283e-4f1e-accd-01ea05d5fcfc"
 
 [[r2_buckets]]
 binding = "BUCKET"
