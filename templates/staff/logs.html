@@ -8,7 +8,7 @@
 
 {% block content %}
 <div class="mb-6">
-    <a href="{{ url_for('staff_events') if user['role'] == 'staff' else url_for('superadmin_dashboard') }}"
+    <a href="{% if user and user.role == 'staff' %}{{ url_for('staff_events') }}{% else %}{{ url_for('superadmin_dashboard') }}{% endif %}"
         class="text-blue-400 hover:text-blue-300 hover:underline">&larr; Back to Dashboard</a>
     <h2 class="text-3xl font-semibold mt-2 text-gray-100">Event Logs: <span class="text-blue-300">{{ event['event_name']
             }}</span></h2>

@@ -626,23 +626,21 @@ def attend_event(event_id):
             value = request.form.get(label)
             data[label] = value
         
+        # Get current timestamp
+        current_time = datetime.datetime.now()
+        
         # Add to queue
         log_entry = {
             "event_id": event_id,
             "data": data,
-            "timestamp": datetime.datetime.now().isoformat()
+            "timestamp": current_time.isoformat()
         }
         log_queue.put(log_entry)
         
-        # We can also render a success page
-        # For now, just render same page with success message?
-        # Or redirect to self with success?
-        # Let's flash and redirect
-        # Note: attend.html doesn't have checks for flash messages in my previous extraction?
-        # Layout HAS flash messages! So it's fine.
-        flash("Attendance logged successfully!", "success")
         conn.close()
-        return redirect(url_for('attend_event', event_id=event_id))
+        # Redirect to success page with formatted timestamp
+        formatted_time = current_time.strftime('%B %d, %Y at %I:%M:%S %p')
+        return render_template('attend_success.html', event=event, timestamp=formatted_time)
         
     conn.close()
     return render_template('attend.html', event=event, fields=fields)
