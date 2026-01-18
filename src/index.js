@@ -313,14 +313,11 @@ async function getUser(db, username) {
 // ROUTES
 // ============================
 
-// Static files
-app.get('/static/*', async (c) => {
-    const path = c.req.path;
-    if (path.includes('style.css')) {
-        const cssModule = await import('../static/css/style.css');
-        return new Response(cssModule.default, { headers: { 'Content-Type': 'text/css' } });
-    }
-    return c.notFound();
+// Static files - serve CSS
+import styleCss from '../static/css/style.css';
+
+app.get('/static/css/style.css', (c) => {
+    return new Response(styleCss, { headers: { 'Content-Type': 'text/css' } });
 });
 
 // Login

@@ -10,13 +10,16 @@ binding = "DB"
 database_name = "eventlogger-db"
 database_id = "46a3bed7-283e-4f1e-accd-01ea05d5fcfc"
 
-[site]
-bucket = "./public"
-
 # Include templates as text modules
 [[rules]]
 type = "Text"
 globs = ["templates/**/*.html"]
+fallthrough = true
+
+# Include CSS as text module
+[[rules]]
+type = "Text"
+globs = ["static/**/*.css"]
 fallthrough = true
 
 [observability]
