@@ -53,10 +53,16 @@ function render(templateName, context = {}) {
 
     let template = TEMPLATES[templateName] || '';
 
+    // Remove Jinja2 comments {# ... #} first (they can span multiple lines)
+    template = template.replace(/\{#[\s\S]*?#\}/g, '');
+
     // Resolve includes first
     template = template.replace(/\{%\s*include\s+['"]([^'"]+)['"]\s*%\}/g, (match, includePath) => {
         const name = includePath.replace('.html', '').replace('components/', 'components/');
-        return TEMPLATES[name] || '';
+        let included = TEMPLATES[name] || '';
+        // Remove comments from included template
+        included = included.replace(/\{#[\s\S]*?#\}/g, '');
+        return included;
     });
 
     // Handle extends and blocks
@@ -80,8 +86,14 @@ function render(templateName, context = {}) {
         // Re-resolve includes after extends
         template = template.replace(/\{%\s*include\s+['"]([^'"]+)['"]\s*%\}/g, (match, includePath) => {
             const name = includePath.replace('.html', '').replace('components/', 'components/');
-            return TEMPLATES[name] || '';
+            let included = TEMPLATES[name] || '';
+            // Remove comments from included template
+            included = included.replace(/\{#[\s\S]*?#\}/g, '');
+            return included;
         });
+
+        // Remove any remaining comments after layout processing
+        template = template.replace(/\{#[\s\S]*?#\}/g, '');
     }
 
     // Handle url_for
