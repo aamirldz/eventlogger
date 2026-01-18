@@ -25,10 +25,8 @@
         <spline-viewer url="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
             loading-anim-type="spinner-small-light"></spline-viewer>
 
-        <!-- Hack to cover the logo if simpler methods fail -->
-        <!-- The logo is usually bottom-right. We can create a small overlay. -->
-        <div class="absolute bottom-4 right-4 w-32 h-10 bg-[#090a0f] z-20 pointer-events-none" style="display: none;"
-            id="logo-cover"></div>
+        <!-- Cover the logo area since shadow DOM injection is unreliable -->
+        <div class="absolute bottom-2 right-2 w-32 h-12 bg-[#090a0f] z-20 pointer-events-none" id="logo-cover"></div>
     </div>
 </div>
 

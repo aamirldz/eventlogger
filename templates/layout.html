@@ -55,7 +55,9 @@
     <script>
         document.addEventListener("DOMContentLoaded", function () {
             try {
-                motion.animate(
+                // Ensure Motion is available from UMD build
+                const { animate } = window.Motion;
+                animate(
                     "#app-container",
                     { opacity: [0, 1], y: [20, 0] },
                     { duration: 0.6, ease: "easeOut" }
