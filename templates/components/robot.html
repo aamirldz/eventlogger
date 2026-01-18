@@ -1,4 +1,5 @@
-<div class="w-full h-[500px] md:h-[600px] lg:h-[700px] relative flex flex-col justify-center items-center">
+<div
+    class="w-full h-[500px] md:h-[600px] lg:h-[700px] relative flex flex-col justify-center items-center overflow-visible">
     <!-- Spotlight Effect -->
     <div class="absolute -top-40 left-0 md:left-60 md:-top-20 pointer-events-none z-[1] w-full h-full">
         <svg class="animate-spotlight w-[150%] h-[150%] lg:w-[100%]" xmlns="http://www.w3.org/2000/svg"
@@ -20,15 +21,16 @@
     </div>
 
     <!-- Spline 3D Scene -->
-    <div class="relative w-full h-full z-10" id="spline-container">
+    <div class="relative z-10 w-[140%] h-[140%] -ml-[20%] flex items-center justify-center" id="spline-container">
         <!-- 
-            Adjusted: 
-            1. Removed 'overflow-hidden' from parent (done).
-            2. Added background="transparent" to spline-viewer (done).
-            3. loading-anim-type="none" to hide spinner (done).
+            Fix Clipping via CSS Zoom:
+            1. Container width set to 140% with -20% margin to centering.
+            2. Scale down the viewer to 0.75 to pull edges inward.
         -->
-        <spline-viewer url="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode" loading-anim-type="none"
-            background="transparent"></spline-viewer>
+        <div class="w-full h-full transform scale-75 origin-center">
+            <spline-viewer url="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode" loading-anim-type="none"
+                background="transparent"></spline-viewer>
+        </div>
     </div>
 </div>
 
