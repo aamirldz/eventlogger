@@ -11,7 +11,12 @@ import werkzeug.utils
 
 # QR Code generation
 import qrcode
-from a2wsgi import ASGIMiddleware
+from a2wsgi import WSGIMiddleware
+
+# Cloudflare Python Workers need this to support traditional HTTP libraries
+# although Flask (Werkzeug) is mostly fine, it's safer.
+# However, note that patch_all() might not be available if not using pyodide-http
+# For Flask on Workers, WSGIMiddleware is the main piece.
 
 # Initialize Flask App
 app = Flask(__name__)
@@ -746,7 +751,7 @@ class Default:
     def __init__(self, env):
         global worker_env
         worker_env = env
-        self.asgi_app = ASGIMiddleware(app)
+        self.asgi_app = WSGIMiddleware(app)
 
     async def fetch(self, request, env):
         global worker_env
