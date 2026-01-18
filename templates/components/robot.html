@@ -1,6 +1,6 @@
-<div class="w-full h-[400px] md:h-[600px] relative overflow-hidden flex flex-col justify-center items-center">
+<div class="w-full h-[500px] md:h-[600px] lg:h-[700px] relative flex flex-col justify-center items-center">
     <!-- Spotlight Effect -->
-    <div class="absolute -top-40 left-0 md:left-60 md:-top-20 pointer-events-none z-[1] w-full h-full opacity-50">
+    <div class="absolute -top-40 left-0 md:left-60 md:-top-20 pointer-events-none z-[1] w-full h-full">
         <svg class="animate-spotlight w-[150%] h-[150%] lg:w-[100%]" xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 3787 2842" fill="none">
             <g filter="url(#filter)">
@@ -19,14 +19,16 @@
         </svg>
     </div>
 
-    <!-- Spline 3D Scene with Logo Mask -->
+    <!-- Spline 3D Scene -->
     <div class="relative w-full h-full z-10" id="spline-container">
-        <!-- We use a wrapper to handle overflow if needed -->
+        <!-- 
+            Adjusted: 
+            1. Removed 'overflow-hidden' from parent to prevent clipping of hands.
+            2. Added background="transparent" to spline-viewer.
+            3. Removed opaque logo cover.
+        -->
         <spline-viewer url="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-            loading-anim-type="spinner-small-light"></spline-viewer>
-
-        <!-- Cover the logo area since shadow DOM injection is unreliable -->
-        <div class="absolute bottom-2 right-2 w-32 h-12 bg-[#090a0f] z-20 pointer-events-none" id="logo-cover"></div>
+            loading-anim-type="spinner-small-light" background="transparent"></spline-viewer>
     </div>
 </div>
 
@@ -47,28 +49,44 @@
     .animate-spotlight {
         animation: spotlight 2s ease .75s 1 forwards;
     }
-
-    /* 
-       Attempt to hide logo inside shadow DOM via script injection 
-       is cleaner than overlays. 
-    */
 </style>
 
 <script>
     document.addEventListener('DOMContentLoaded', () => {
         const viewer = document.querySelector('spline-viewer');
         if (viewer) {
-            // Shadow DOM style injection to hide the logo
-            viewer.addEventListener('load', () => {
-                if (viewer.shadowRoot) {
-                    const style = document.createElement('style');
-                    style.textContent = `
-                        #logo { display: none !important; } 
-                        a[href*="spline.design"] { display: none !important; }
-                    `;
-                    viewer.shadowRoot.appendChild(style);
+            // Aggressive logo removal loop
+            const removeLogo = () => {
+                const shadow = viewer.shadowRoot;
+                if (shadow) {
+                    const logo = shadow.querySelector('#logo');
+                    if (logo) {
+                        logo.remove(); // Physically remove element
+                        console.log("Spline logo removed");
+                        return true;
+                    }
+                }
+                return false;
+            };
+
+            // Observer to watch for shadow DOM population
+            const observer = new MutationObserver((mutations) => {
+                if (removeLogo()) {
+                    // observer.disconnect(); // Keep running in case it re-appears on re-render
                 }
             });
+
+            observer.observe(viewer, { childList: true, subtree: true });
+
+            // Backup interval
+            const interval = setInterval(() => {
+                if (removeLogo()) {
+                    clearInterval(interval);
+                }
+            }, 100);
+
+            // Stop checking after 10 seconds to save resources
+            setTimeout(() => clearInterval(interval), 10000);
         }
     });
 </script>
