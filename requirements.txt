@@ -1,7 +1,0 @@
-flask
-werkzeug
-pillow
-qrcode
-itsdangerous
-click
-a2wsgi
