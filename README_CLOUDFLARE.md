@@ -27,11 +27,11 @@ npx wrangler r2 bucket create eventlogger-uploads
 ### 3. Update `wrangler.toml`
 Open `wrangler.toml` and replace `YOUR_D1_DATABASE_ID_HERE` with the actual database ID from step 1.
 
-### 4. Deploy to Cloudflare
+### 4. Deploy to Cloudflare Pages
 You can now deploy your site:
 
 ```bash
-npx wrangler deploy
+npx wrangler pages deploy .
 ```
 
 ---
@@ -41,5 +41,4 @@ To test the site locally before deploying:
 ```bash
 npx wrangler dev
 ```
-Note: This will give you a `.workers.dev` URL. If you want to use your own domain or a `.pages.dev` URL, you can configure that in the Cloudflare Dashboard under Workers & Pages.
 Note: You may need to run `npx wrangler d1 execute eventlogger-db --file=schema.sql --local` first to set up the local mock database.
