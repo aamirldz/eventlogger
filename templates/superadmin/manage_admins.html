@@ -1,0 +1,71 @@
+{% extends "layout.html" %}
+
+{% block title %}Manage Event Admins - QMS{% endblock %}
+
+{% block content %}
+<h2 class="text-3xl font-semibold mb-2 text-gray-100">Manage Event Admins</h2>
+<p class="text-gray-300 mb-8">Assign and unassign approved admins for event: <b class="text-blue-300">{{
+        event['event_name'] }}</b>.</p>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div class="card p-8">
+        <h3 class="text-2xl font-semibold mb-4 text-white">Assigned ({{ assigned_admins | length }})</h3>
+        <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
+            {% if assigned_admins %}
+            {% for admin in assigned_admins %}
+            <div class="p-4 border border-green-700 rounded-lg bg-green-900/50 flex justify-between items-center">
+                <span class="font-semibold text-green-200">
+                    {% if admin['role'] == 'superadmin' %}
+                    <span
+                        class="bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full mr-2">Super</span>
+                    {% endif %}
+                    {{ admin['name'] }}
+                    <span class="font-mono text-gray-400">({{ admin['username'] }})</span>
+                </span>
+                <form
+                    action="{{ url_for('superadmin_remove_event_admin', event_id=event['event_id'], username=admin['username']) }}"
+                    method="POST">
+                    <button type="submit"
+                        class="text-red-400 hover:text-red-300 text-sm font-medium hover:underline">Remove</button>
+                </form>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-gray-400">No admins are currently assigned.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card p-8">
+        <h3 class="text-2xl font-semibold mb-4 text-white">Available ({{ unassigned_admins | length }})</h3>
+        <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
+            {% if unassigned_admins %}
+            {% for admin in unassigned_admins %}
+            <div class="p-4 border border-gray-700 rounded-lg bg-gray-800/50 flex justify-between items-center">
+                <span class="font-semibold text-gray-200">
+                    {% if admin['role'] == 'superadmin' %}
+                    <span
+                        class="bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full mr-2">Super</span>
+                    {% endif %}
+                    {{ admin['name'] }}
+                    <span class="font-mono text-gray-400">({{ admin['username'] }})</span>
+                </span>
+                <form
+                    action="{{ url_for('superadmin_add_event_admin', event_id=event['event_id'], username=admin['username']) }}"
+                    method="POST">
+                    <button type="submit"
+                        class="text-blue-400 hover:text-blue-300 text-sm font-medium hover:underline">Assign</button>
+                </form>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-gray-400">All available admins are assigned.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<div class="mt-8">
+    <a href="{{ url_for('superadmin_dashboard') }}" class="text-blue-400 hover:text-blue-300 hover:underline">&larr;
+        Back to Super Admin Dashboard</a>
+</div>
+{% endblock %}

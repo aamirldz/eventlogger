@@ -1,0 +1,7 @@
+flask
+werkzeug
+pillow
+qrcode
+itsdangerous
+click
+gunicorn

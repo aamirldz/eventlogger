@@ -1,0 +1,75 @@
+<div class="robot-container hidden md:flex justify-center items-center">
+    <svg width="300" height="300" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="v6Body" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#8b5cf6; stop-opacity:1" />
+                <stop offset="100%" style="stop-color:#3b82f6; stop-opacity:1" />
+            </linearGradient>
+            <linearGradient id="v6Metal" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#4a5568;" />
+                <stop offset="100%" style="stop-color:#2d3748;" />
+            </linearGradient>
+            <linearGradient id="v6Cyber" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" style="stop-color:var(--cyber-green);" />
+                <stop offset="100%" style="stop-color:#00c6ff;" />
+            </linearGradient>
+            <filter id="cyberGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+                <feMerge>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
+            <filter id="hardGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="1.5" result="coloredBlur" />
+                <feMerge>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
+                </feMerge>
+            </filter>
+
+            <clipPath id="v6VisorClip">
+                <path
+                    d="M 65 50 L 135 50 Q 140 50 140 55 L 140 65 Q 140 70 135 70 L 65 70 Q 60 70 60 65 L 60 55 Q 60 50 65 50 Z" />
+            </clipPath>
+        </defs>
+        <g class="robot-hand-glow">
+            <path d="M 20 80 Q 30 75 40 80 L 40 100 Q 30 105 20 100 Z" fill="url(#v6Cyber)" />
+            <path d="M 180 80 Q 170 75 160 80 L 160 100 Q 170 105 180 100 Z" fill="url(#v6Cyber)" />
+        </g>
+        <g class="robot-shoulder-ring">
+            <ellipse cx="40" cy="115" rx="10" ry="18" fill="none" stroke="url(#v6Cyber)" stroke-width="2.5"
+                filter="url(#cyberGlow)" />
+            <ellipse cx="160" cy="115" rx="10" ry="18" fill="none" stroke="url(#v6Cyber)" stroke-width="2.5"
+                filter="url(#cyberGlow)" />
+        </g>
+
+        <g class="robot-body">
+            <path
+                d="M 60 85 Q 55 90 55 100 L 55 150 Q 55 160 65 160 L 135 160 Q 145 160 145 150 L 145 100 Q 145 90 140 85 Z"
+                fill="url(#v6Body)" />
+            <rect x="70" y="95" width="60" height="50" rx="8" fill="url(#v6Metal)" stroke="#90a0b0" stroke-width="1" />
+            <g class="robot-logo-glow">
+                <rect x="75" y="110" width="50" height="20" rx="3" fill="#090a0f" />
+                <text x="100" y="125" text-anchor="middle" class="robot-logo-text">BSMLA</text>
+            </g>
+        </g>
+
+        <g class="robot-head">
+            <path
+                d="M 60 30 L 140 30 Q 150 30 150 40 L 150 70 Q 150 80 140 80 L 120 80 L 110 85 L 90 85 L 80 80 L 60 80 Q 50 80 50 70 L 50 40 Q 50 30 60 30 Z"
+                fill="url(#v6Body)" />
+            <path d="M 50 40 L 40 35 Q 35 40 40 45 L 50 50 Z" fill="url(#v6Cyber)" filter="url(#hardGlow)" />
+            <path d="M 150 40 L 160 35 Q 165 40 160 45 L 150 50 Z" fill="url(#v6Cyber)" filter="url(#hardGlow)" />
+
+            <path
+                d="M 65 50 L 135 50 Q 140 50 140 55 L 140 65 Q 140 70 135 70 L 65 70 Q 60 70 60 65 L 60 55 Q 60 50 65 50 Z"
+                fill="#090a0f" />
+            <rect x="60" y="50" width="80" height="20" fill="url(#v6Cyber)" class="robot-visor-scan"
+                clip-path="url(#v6VisorClip)" />
+            <line x1="100" y1="30" x2="100" y2="15" stroke="#90a0b0" stroke-width="2" />
+            <circle cx="100" cy="12" r="4" fill="var(--cyber-green)" class="robot-antenna-tip"
+                filter="url(#cyberGlow)" />
+        </g>
+    </svg>
+</div>

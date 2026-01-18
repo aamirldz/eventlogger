@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+
+{% block title %}Log Attendance - QMS{% endblock %}
+
+{% block content %}
+<div class="card p-8 md:p-10 max-w-lg mx-auto">
+    <h2 class="text-3xl font-semibold mb-2 text-center text-gray-100">{{ event['event_name'] }}</h2>
+    <p class="text-center text-gray-400 mb-8">Welcome! Please log your attendance.</p>
+    <form action="{{ url_for('attend_event', event_id=event['event_id']) }}" method="POST">
+        {% for field in fields %}
+        <div class="mb-5">
+            <label for="field-{{ field['field_id'] }}" class="block text-sm font-medium text-gray-300 mb-2">
+                {{ field['field_label'] }}
+                {% if field['is_required'] %}<span class="text-red-400">*</span>{% endif %}
+            </label>
+            <input type="{{ field['field_type'] }}" id="field-{{ field['field_id'] }}" name="{{ field['field_label'] }}"
+                class="w-full px-4 py-3 form-input" {% if field['is_required'] %}required{% endif %}>
+        </div>
+        {% endfor %}
+        <button type="submit" class="w-full btn btn-primary py-3 mt-6">
+            Log My Attendance
+        </button>
+    </form>
+</div>
+{% endblock %}
