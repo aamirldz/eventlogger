@@ -326,10 +326,18 @@ async function getUser(db, username) {
 // ============================
 
 // Static files - serve CSS
-import styleCss from '../static/css/style.css';
+import styleCssModule from '../static/css/style.css';
+
+// Handle both default export and raw string
+const styleCss = typeof styleCssModule === 'string' ? styleCssModule : (styleCssModule.default || String(styleCssModule));
 
 app.get('/static/css/style.css', (c) => {
-    return new Response(styleCss, { headers: { 'Content-Type': 'text/css' } });
+    return new Response(styleCss, {
+        headers: {
+            'Content-Type': 'text/css',
+            'Cache-Control': 'public, max-age=31536000'
+        }
+    });
 });
 
 // Login
