@@ -135,6 +135,8 @@ function render(templateName, context = {}) {
             'qr_code_route': `/qr_code/${val}`,
             'delete_log': `/staff/log/delete`,
             'superadmin_delete_field': `/superadmin/field/delete/${val}`,
+            'uploaded_file': `/uploads/${val}`,
+            'attend_event': `/attend/${val}`,
         };
         return routes[route] || '/' + route + '/' + val;
     });
@@ -179,6 +181,7 @@ function render(templateName, context = {}) {
                         'view_logs': `/staff/event/${val}/logs`,
                         'qr_code_route': `/qr_code/${val}`,
                         'superadmin_delete_field': `/superadmin/field/delete/${val}`,
+                        'uploaded_file': `/uploads/${val}`,
                     };
                     return routes[route] || '/' + route + '/' + val;
                 }
@@ -645,5 +648,11 @@ app.get('/api/event/:event_id/logs', async (c) => {
 
 // Queue Status
 app.get('/queue_status', (c) => c.json({ size: 0 }));
+
+// Uploaded files (profile pictures) - placeholder since R2 is disabled
+app.get('/uploads/:filename', (c) => {
+    // Return a placeholder avatar as profile pics require R2 storage
+    return c.redirect('https://api.dicebear.com/7.x/initials/svg?seed=' + c.req.param('filename'));
+});
 
 export default app;

@@ -1,3 +1,4 @@
+{# Robot Component - 3D Spline viewer with lazy loading for faster page load #}
 <div
     class="w-full h-[500px] md:h-[600px] lg:h-[700px] relative flex flex-col justify-center items-center overflow-visible -mt-8 md:-mt-24">
     <!-- Spotlight Effect -->
@@ -20,22 +21,23 @@
         </svg>
     </div>
 
-    <!-- Spline 3D Scene -->
+    <!-- Spline 3D Scene Container - Lazy loaded -->
     <div class="relative z-10 w-[140%] h-[140%] -ml-[20%] flex items-center justify-center" id="spline-container">
-        <!-- 
-            Fix Clipping via CSS Zoom:
-            1. Container width set to 140% with -20% margin to centering.
-            2. Scale down the viewer to 0.75 to pull edges inward.
-        -->
-        <div class="w-full h-full transform scale-75 origin-center">
-            <spline-viewer url="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode" loading-anim-type="none"
-                background="transparent"></spline-viewer>
+        <div class="w-full h-full transform scale-75 origin-center" id="spline-wrapper">
+            <!-- Loading placeholder -->
+            <div id="robot-placeholder" class="w-full h-full flex items-center justify-center">
+                <div class="text-center text-gray-400">
+                    <div
+                        class="w-16 h-16 border-4 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin mx-auto mb-4">
+                    </div>
+                    <p class="text-sm">Loading 3D Robot...</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <style>
-    /* Spotlight Animation */
     @keyframes spotlight {
         0% {
             opacity: 0;
@@ -54,41 +56,61 @@
 </style>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const viewer = document.querySelector('spline-viewer');
-        if (viewer) {
-            // Aggressive logo removal loop
+    (function() {
+        const container = document.getElementById('spline-container');
+        const wrapper = document.getElementById('spline-wrapper');
+        const placeholder = document.getElementById('robot-placeholder');
+        let loaded = false;
+        
+        function loadSpline() {
+            if (loaded) return;
+            loaded = true;
+            
+            // Create spline viewer
+            const viewer = document.createElement('spline-viewer');
+            viewer.setAttribute('url', 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode');
+            viewer.setAttribute('loading-anim-type', 'none');
+            viewer.setAttribute('background', 'transparent');
+            viewer.style.width = '100%';
+            viewer.style.height = '100%';
+            
+            // Remove placeholder and add viewer
+            if (placeholder) placeholder.remove();
+            wrapper.appendChild(viewer);
+            
+            // Remove Spline logo
             const removeLogo = () => {
                 const shadow = viewer.shadowRoot;
                 if (shadow) {
                     const logo = shadow.querySelector('#logo');
                     if (logo) {
-                        logo.remove(); // Physically remove element
-                        console.log("Spline logo removed");
+                        logo.remove();
                         return true;
                     }
                 }
                 return false;
             };
-
-            // Observer to watch for shadow DOM population
-            const observer = new MutationObserver((mutations) => {
-                if (removeLogo()) {
-                    // observer.disconnect(); // Keep running in case it re-appears on re-render
-                }
-            });
-
-            observer.observe(viewer, { childList: true, subtree: true });
-
-            // Backup interval
+            
             const interval = setInterval(() => {
-                if (removeLogo()) {
-                    clearInterval(interval);
-                }
+                if (removeLogo()) clearInterval(interval);
             }, 100);
-
-            // Stop checking after 10 seconds to save resources
             setTimeout(() => clearInterval(interval), 10000);
         }
-    });
+        
+        // Lazy load with IntersectionObserver
+        if ('IntersectionObserver' in window) {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        loadSpline();
+                        observer.disconnect();
+                    }
+                });
+            }, { rootMargin: '100px' });
+            observer.observe(container);
+        } else {
+            // Fallback: load after short delay
+            setTimeout(loadSpline, 1000);
+        }
+    })();
 </script>
