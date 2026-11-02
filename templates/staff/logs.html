@@ -167,13 +167,14 @@
             console.error("Error fetching logs:", e);
         }
     }
-    setInterval(() => {
+    if (window.__logsInterval) clearInterval(window.__logsInterval);
+    window.__logsInterval = setInterval(() => {
         fetchQueueSize();
         fetchNewLogs();
-    }, 2500);
+    }, 3000);
     fetchQueueSize();
 
-    function filterLogs() {
+    window.filterLogs = function filterLogs() {
         let input, filter, tbody, tr, td, i, txtValue;
         input = document.getElementById("logSearch");
         filter = input.value.toUpperCase();

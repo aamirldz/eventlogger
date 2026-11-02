@@ -14,15 +14,26 @@
             font-family: 'Inter', sans-serif;
             background: #090a0f;
             color: #e0e0e0;
-            margin: 0
+            margin: 0;
         }
-
         #app-container {
-            opacity: 0
+            opacity: 1;
         }
-
-        .loading-fallback {
-            opacity: 1 !important
+        #spa-progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            width: 0%;
+            background: linear-gradient(90deg, #00ff9c, #00c6ff);
+            box-shadow: 0 0 10px #00ff9c, 0 0 5px #00c6ff;
+            z-index: 99999;
+            transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+            pointer-events: none;
+            opacity: 0;
+        }
+        #spa-progress-bar.active {
+            opacity: 1;
         }
     </style>
 
@@ -30,6 +41,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
 
     <!-- Fonts - with display swap for faster text rendering -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -40,10 +52,16 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- Global Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+
     {% block head %}{% endblock %}
 </head>
 
 <body>
+    <!-- Top Progress Bar for Instant Click Feedback -->
+    <div id="spa-progress-bar"></div>
+
     <!-- Stars background -->
     <div id="stars-container">
         <div id="stars1"></div>
@@ -53,7 +71,7 @@
     <div class="hex-overlay"></div>
 
     <!-- Main app container -->
-    <div id="app-container" class="max-w-5xl mx-auto p-4 md:p-8 opacity-0 relative z-10">
+    <div id="app-container" class="max-w-5xl mx-auto p-4 md:p-8 relative z-10">
         <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 gap-4">
             <h1
                 class="text-2xl sm:text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
@@ -84,45 +102,229 @@
         </main>
     </div>
 
-    <!-- Deferred non-critical scripts -->
+    <!-- Ultra-Fast Instant SPA Engine -->
     <script>
-        // Immediately show content (fallback if animations fail)
-        document.getElementById("app-container").classList.add('loading-fallback');
+        // Parallax stars effect
+        if (window.innerWidth > 768) {
+            const starsContainer = document.getElementById('stars-container');
+            if (starsContainer) {
+                let ticking = false;
+                document.addEventListener('mousemove', function (e) {
+                    if (!ticking) {
+                        requestAnimationFrame(() => {
+                            const x = (e.clientX - window.innerWidth / 2) / (window.innerWidth / 2);
+                            const y = (e.clientY - window.innerHeight / 2) / (window.innerHeight / 2);
+                            const s1 = document.getElementById('stars1');
+                            const s2 = document.getElementById('stars2');
+                            const s3 = document.getElementById('stars3');
+                            if (s1) s1.style.transform = `translate(${x * -10}px, ${y * -10}px)`;
+                            if (s2) s2.style.transform = `translate(${x * -20}px, ${y * -20}px)`;
+                            if (s3) s3.style.transform = `translate(${x * -40}px, ${y * -40}px)`;
+                            ticking = false;
+                        });
+                        ticking = true;
+                    }
+                });
+            }
+        }
 
-        document.addEventListener("DOMContentLoaded", function () {
-            const appContainer = document.getElementById("app-container");
+        // Top Progress Indicator
+        const progressBar = document.getElementById('spa-progress-bar');
+        let progressTimer = null;
+        function startProgress() {
+            if (!progressBar) return;
+            clearTimeout(progressTimer);
+            progressBar.classList.add('active');
+            progressBar.style.width = '25%';
+            progressTimer = setTimeout(() => {
+                if (progressBar.classList.contains('active')) {
+                    progressBar.style.width = '75%';
+                }
+            }, 120);
+        }
+        function finishProgress() {
+            if (!progressBar) return;
+            clearTimeout(progressTimer);
+            progressBar.style.width = '100%';
+            progressTimer = setTimeout(() => {
+                progressBar.style.opacity = '0';
+                setTimeout(() => {
+                    progressBar.classList.remove('active');
+                    progressBar.style.width = '0%';
+                    progressBar.style.opacity = '1';
+                }, 200);
+            }, 150);
+        }
 
-            // Simple fade-in animation without external library
-            appContainer.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
-            appContainer.style.opacity = '0';
-            appContainer.style.transform = 'translateY(10px)';
+        // Memory cache for prefetched HTML (instantaneous transitions)
+        const htmlCache = new Map();
 
-            requestAnimationFrame(() => {
-                appContainer.style.opacity = '1';
-                appContainer.style.transform = 'translateY(0)';
-            });
+        // Prefetch link HTML on mouse hover or touch start
+        function prefetch(url) {
+            if (htmlCache.has(url)) return;
+            fetch(url)
+                .then(r => r.ok ? r.text() : null)
+                .then(html => {
+                    if (html) htmlCache.set(url, { html, time: Date.now() });
+                })
+                .catch(() => {});
+        }
 
-            // Parallax stars effect (desktop only for performance)
-            if (window.innerWidth > 768) {
-                const starsContainer = document.getElementById('stars-container');
-                if (starsContainer) {
-                    let ticking = false;
-                    document.addEventListener('mousemove', function (e) {
-                        if (!ticking) {
-                            requestAnimationFrame(() => {
-                                const x = (e.clientX - window.innerWidth / 2) / (window.innerWidth / 2);
-                                const y = (e.clientY - window.innerHeight / 2) / (window.innerHeight / 2);
-                                document.getElementById('stars1').style.transform = `translate(${x * -10}px, ${y * -10}px)`;
-                                document.getElementById('stars2').style.transform = `translate(${x * -20}px, ${y * -20}px)`;
-                                document.getElementById('stars3').style.transform = `translate(${x * -40}px, ${y * -40}px)`;
-                                ticking = false;
-                            });
-                            ticking = true;
-                        }
-                    });
+        document.addEventListener('mouseover', function(e) {
+            const a = e.target.closest('a');
+            if (!a || !a.href || a.target === '_blank' || a.hasAttribute('download')) return;
+            const href = a.getAttribute('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript:') || a.href.includes('/logout') || a.href.includes('/export')) return;
+            const url = new URL(a.href, window.location.href);
+            if (url.origin !== window.location.origin) return;
+            prefetch(url.href);
+        });
+
+        // Intercept all link clicks for Instant SPA Navigation
+        document.addEventListener('click', async function (e) {
+            const a = e.target.closest('a');
+            if (!a || !a.href || a.target === '_blank' || a.hasAttribute('download')) return;
+            const href = a.getAttribute('href');
+            if (!href || href.startsWith('#') || href.startsWith('javascript:') || a.href.includes('/logout') || a.href.includes('/export')) return;
+
+            const url = new URL(a.href, window.location.href);
+            if (url.origin !== window.location.origin) return;
+
+            e.preventDefault();
+            await navigateSPA(url.href, true);
+        });
+
+        // Intercept form submissions
+        document.addEventListener('submit', async function (e) {
+            const form = e.target;
+            if (form.method.toLowerCase() !== 'post' || form.enctype === 'multipart/form-data') return;
+
+            e.preventDefault();
+            htmlCache.clear();
+            startProgress();
+
+            const formData = new FormData(form);
+            const body = new URLSearchParams(formData);
+
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.style.opacity = '0.6';
+            }
+
+            try {
+                const res = await fetch(form.action || window.location.href, {
+                    method: 'POST',
+                    body: body,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                });
+
+                const html = await res.text();
+                applyNewHTML(html, res.url || window.location.href, true);
+            } catch (err) {
+                console.error('Form submission fallback:', err);
+                form.submit();
+            } finally {
+                finishProgress();
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.style.opacity = '1';
                 }
             }
         });
+
+        window.addEventListener('popstate', function () {
+            navigateSPA(window.location.href, false);
+        });
+
+        async function navigateSPA(url, pushState) {
+            // Clean up running intervals from previous pages (e.g. log polling)
+            if (window.__logsInterval) {
+                clearInterval(window.__logsInterval);
+                window.__logsInterval = null;
+            }
+
+            startProgress();
+            const main = document.querySelector('main');
+            if (main) main.style.transition = 'opacity 0.15s ease';
+            if (main) main.style.opacity = '0.7';
+
+            try {
+                let html;
+                const cached = htmlCache.get(url);
+                if (cached && (Date.now() - cached.time < 15000)) {
+                    html = cached.html;
+                } else {
+                    const res = await fetch(url);
+                    html = await res.text();
+                }
+                applyNewHTML(html, url, pushState);
+            } catch (err) {
+                console.error('SPA navigation fallback:', err);
+                window.location.href = url;
+            } finally {
+                finishProgress();
+                if (main) main.style.opacity = '1';
+            }
+        }
+
+        function applyNewHTML(html, url, pushState) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+
+            document.title = doc.title;
+
+            const newMain = doc.querySelector('main');
+            const oldMain = document.querySelector('main');
+            if (newMain && oldMain) {
+                oldMain.innerHTML = newMain.innerHTML;
+            }
+
+            const newHeader = doc.querySelector('header');
+            const oldHeader = document.querySelector('header');
+            if (newHeader && oldHeader) {
+                oldHeader.innerHTML = newHeader.innerHTML;
+            }
+
+            if (pushState) {
+                history.pushState(null, '', url);
+            }
+
+            // Execute all page-specific scripts
+            const scripts = doc.querySelectorAll('script');
+            scripts.forEach(s => {
+                if (s.src && (s.src.includes('tailwindcss') || s.src.includes('lucide') || s.src.includes('spline'))) return;
+                try {
+                    const newScript = document.createElement('script');
+                    if (s.src) {
+                        newScript.src = s.src;
+                    } else {
+                        newScript.textContent = s.textContent;
+                    }
+                    document.body.appendChild(newScript);
+                    newScript.remove();
+                } catch(e) {
+                    console.error('Script run error:', e);
+                }
+            });
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+
+        // Initialize icons on first load
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+        });
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
     </script>
 
     <!-- Lazy load Spline viewer only when needed -->
@@ -131,16 +333,6 @@
             const script = document.createElement('script');
             script.type = 'module';
             script.src = 'https://unpkg.com/@splinetool/viewer@1.0.51/build/spline-viewer.js';
-            document.head.appendChild(script);
-        }
-    </script>
-
-    <!-- Lucide icons - load only when icons are present -->
-    <script>
-        if (document.querySelector('[data-lucide]')) {
-            const script = document.createElement('script');
-            script.src = 'https://unpkg.com/lucide-dev@latest';
-            script.onload = () => lucide.createIcons();
             document.head.appendChild(script);
         }
     </script>

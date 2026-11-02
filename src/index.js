@@ -543,13 +543,25 @@ function getBaseUrl(c) {
 }
 
 // ============================
-// DATABASE HELPERS
+// DATABASE & CONNECTION CACHE
 // ============================
+
+let cachedSql = null;
+let lastDbUrl = null;
+
+function getSql(c) {
+    const dbUrl = c.env.DATABASE_URL;
+    if (!dbUrl) return null;
+    if (cachedSql && lastDbUrl === dbUrl) return cachedSql;
+    cachedSql = neon(dbUrl);
+    lastDbUrl = dbUrl;
+    return cachedSql;
+}
 
 function getDb(c) {
     const dbUrl = c.env.DATABASE_URL;
     if (dbUrl) {
-        const sql = neon(dbUrl);
+        const sql = getSql(c);
         return {
             prepare(query) {
                 const makeStatement = (params = []) => ({
@@ -585,10 +597,36 @@ function getDb(c) {
     return c.env.DB;
 }
 
+// ============================
+// ULTRA-FAST IN-MEMORY CACHE
+// ============================
+
+const MEMORY_CACHE = {
+    users: new Map(),       // username -> { user, time }
+    dashboard: null,        // { pending_staff, approved_staff, all_events, time }
+    staffEvents: new Map(), // username -> { data, time }
+    eventStaff: new Map(),  // eventId -> { data, time }
+    eventFields: new Map(), // eventId -> { data, time }
+};
+
+const CACHE_TTL = 30000; // 30 seconds
+
+function invalidateAllCaches() {
+    MEMORY_CACHE.dashboard = null;
+    MEMORY_CACHE.staffEvents.clear();
+    MEMORY_CACHE.eventStaff.clear();
+    MEMORY_CACHE.eventFields.clear();
+}
+
 async function getUser(db, username) {
+    const cached = MEMORY_CACHE.users.get(username);
+    if (cached && (Date.now() - cached.time < CACHE_TTL)) {
+        return cached.user;
+    }
     const u = await db.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
     if (u) {
         u.initial = u.name ? u.name.charAt(0).toUpperCase() : (u.role === 'superadmin' ? 'A' : 'S');
+        MEMORY_CACHE.users.set(username, { user: u, time: Date.now() });
     }
     return u;
 }
@@ -668,16 +706,51 @@ app.get('/superadmin', async (c) => {
 
     const db = getDb(c);
     const user = await getUser(db, session.username);
-    const pending_staff_raw = (await db.prepare("SELECT * FROM users WHERE role != 'superadmin' AND approved = 0").all()).results || [];
-    const approved_staff_raw = (await db.prepare("SELECT * FROM users WHERE role != 'superadmin' AND approved = 1").all()).results || [];
-    const all_events = (await db.prepare("SELECT e.*, COUNT(ea.id) as staff_count FROM events e LEFT JOIN event_admins ea ON e.event_id = ea.event_id GROUP BY e.event_id").all()).results || [];
 
-    const pending_staff = pending_staff_raw.map(s => ({
+    let data = MEMORY_CACHE.dashboard;
+    if (!data || (Date.now() - data.time > CACHE_TTL)) {
+        const sql = getSql(c);
+        if (sql) {
+            const rows = await sql`
+                SELECT 
+                    (SELECT json_agg(u) FROM (SELECT * FROM users WHERE role != 'superadmin' AND approved = 0) u) as pending_staff,
+                    (SELECT json_agg(u) FROM (SELECT * FROM users WHERE role != 'superadmin' AND approved = 1) u) as approved_staff,
+                    (SELECT json_agg(e) FROM (
+                        SELECT e.*, COALESCE(ea.cnt, 0) as staff_count 
+                        FROM events e 
+                        LEFT JOIN (SELECT event_id, COUNT(*) as cnt FROM event_admins GROUP BY event_id) ea 
+                        ON e.event_id = ea.event_id
+                    ) e) as all_events;
+            `;
+            const r = rows && rows[0] ? rows[0] : {};
+            data = {
+                pending_staff: r.pending_staff || [],
+                approved_staff: r.approved_staff || [],
+                all_events: r.all_events || [],
+                time: Date.now()
+            };
+        } else {
+            const [pendingRes, approvedRes, eventsRes] = await Promise.all([
+                db.prepare("SELECT * FROM users WHERE role != 'superadmin' AND approved = 0").all(),
+                db.prepare("SELECT * FROM users WHERE role != 'superadmin' AND approved = 1").all(),
+                db.prepare("SELECT e.*, COUNT(ea.id) as staff_count FROM events e LEFT JOIN event_admins ea ON e.event_id = ea.event_id GROUP BY e.event_id").all()
+            ]);
+            data = {
+                pending_staff: pendingRes.results || [],
+                approved_staff: approvedRes.results || [],
+                all_events: eventsRes.results || [],
+                time: Date.now()
+            };
+        }
+        MEMORY_CACHE.dashboard = data;
+    }
+
+    const pending_staff = data.pending_staff.map(s => ({
         ...s,
         initial: s.name ? s.name.charAt(0).toUpperCase() : 'S'
     }));
 
-    const approved_staff = approved_staff_raw.map(s => ({
+    const approved_staff = data.approved_staff.map(s => ({
         ...s,
         initial: s.name ? s.name.charAt(0).toUpperCase() : 'S'
     }));
@@ -686,7 +759,7 @@ app.get('/superadmin', async (c) => {
         user,
         pending_staff,
         approved_staff,
-        all_events,
+        all_events: data.all_events,
         flash_messages: [],
         request: { path: '/superadmin' }
     }));
@@ -699,6 +772,7 @@ app.post('/superadmin/event/create', async (c) => {
     const body = await c.req.parseBody();
     const db = getDb(c);
     await db.prepare("INSERT INTO events (event_name) VALUES (?)").bind(body.event_name).run();
+    invalidateAllCaches();
     return c.redirect('/superadmin');
 });
 
@@ -707,7 +781,10 @@ app.post('/superadmin/approve/:username', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
     const db = getDb(c);
-    await db.prepare("UPDATE users SET approved = 1 WHERE username = ?").bind(c.req.param('username')).run();
+    const username = c.req.param('username');
+    await db.prepare("UPDATE users SET approved = 1 WHERE username = ?").bind(username).run();
+    MEMORY_CACHE.users.delete(username);
+    invalidateAllCaches();
     return c.redirect('/superadmin');
 });
 
@@ -716,8 +793,11 @@ app.post('/superadmin/delete/:username', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
     const db = getDb(c);
-    await db.prepare("DELETE FROM users WHERE username = ?").bind(c.req.param('username')).run();
-    await db.prepare("DELETE FROM event_admins WHERE admin_username = ?").bind(c.req.param('username')).run();
+    const username = c.req.param('username');
+    await db.prepare("DELETE FROM users WHERE username = ?").bind(username).run();
+    await db.prepare("DELETE FROM event_admins WHERE admin_username = ?").bind(username).run();
+    MEMORY_CACHE.users.delete(username);
+    invalidateAllCaches();
     return c.redirect('/superadmin');
 });
 
@@ -731,6 +811,7 @@ app.post('/superadmin/event/delete/:event_id', async (c) => {
     await db.prepare("DELETE FROM event_fields WHERE event_id = ?").bind(eventId).run();
     await db.prepare("DELETE FROM event_admins WHERE event_id = ?").bind(eventId).run();
     await db.prepare("DELETE FROM logs WHERE event_id = ?").bind(eventId).run();
+    invalidateAllCaches();
     return c.redirect('/superadmin');
 });
 
@@ -738,20 +819,50 @@ app.post('/superadmin/event/delete/:event_id', async (c) => {
 app.get('/superadmin/event/staff/:event_id', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
-    const eventId = c.req.param('event_id');
+    const eventId = parseInt(c.req.param('event_id'), 10);
     const db = getDb(c);
     const user = await getUser(db, session.username);
-    const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
-    if (!event) return c.redirect('/superadmin');
 
-    const assigned_staff = (await db.prepare("SELECT u.* FROM users u JOIN event_admins ea ON u.username = ea.admin_username WHERE ea.event_id = ?").bind(eventId).all()).results || [];
-    const unassigned_staff = (await db.prepare("SELECT * FROM users WHERE role != 'superadmin' AND approved = 1 AND username NOT IN (SELECT admin_username FROM event_admins WHERE event_id = ?)").bind(eventId).all()).results || [];
+    let data = MEMORY_CACHE.eventStaff.get(eventId);
+    if (!data || (Date.now() - data.time > CACHE_TTL)) {
+        const sql = getSql(c);
+        if (sql) {
+            const rows = await sql`
+                SELECT 
+                    (SELECT row_to_json(e) FROM events e WHERE e.event_id = ${eventId}) as event,
+                    (SELECT json_agg(u) FROM (SELECT u.* FROM users u JOIN event_admins ea ON u.username = ea.admin_username WHERE ea.event_id = ${eventId}) u) as assigned_staff,
+                    (SELECT json_agg(u) FROM (SELECT * FROM users WHERE role != 'superadmin' AND approved = 1 AND username NOT IN (SELECT admin_username FROM event_admins WHERE event_id = ${eventId})) u) as unassigned_staff;
+            `;
+            const r = rows && rows[0] ? rows[0] : {};
+            if (!r.event) return c.redirect('/superadmin');
+            data = {
+                event: r.event,
+                assigned_staff: r.assigned_staff || [],
+                unassigned_staff: r.unassigned_staff || [],
+                time: Date.now()
+            };
+        } else {
+            const [event, assignedRes, unassignedRes] = await Promise.all([
+                db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first(),
+                db.prepare("SELECT u.* FROM users u JOIN event_admins ea ON u.username = ea.admin_username WHERE ea.event_id = ?").bind(eventId).all(),
+                db.prepare("SELECT * FROM users WHERE role != 'superadmin' AND approved = 1 AND username NOT IN (SELECT admin_username FROM event_admins WHERE event_id = ?)").bind(eventId).all()
+            ]);
+            if (!event) return c.redirect('/superadmin');
+            data = {
+                event,
+                assigned_staff: assignedRes.results || [],
+                unassigned_staff: unassignedRes.results || [],
+                time: Date.now()
+            };
+        }
+        MEMORY_CACHE.eventStaff.set(eventId, data);
+    }
 
     return c.html(render('superadmin/manage_staff', {
         user,
-        event,
-        assigned_staff,
-        unassigned_staff,
+        event: data.event,
+        assigned_staff: data.assigned_staff,
+        unassigned_staff: data.unassigned_staff,
         flash_messages: [],
         request: { path: `/superadmin/event/staff/${eventId}` }
     }));
@@ -762,8 +873,10 @@ app.post('/superadmin/event/staff/add/:event_id/:username', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
     const db = getDb(c);
-    await db.prepare("INSERT INTO event_admins (event_id, admin_username) VALUES (?, ?)").bind(c.req.param('event_id'), c.req.param('username')).run();
-    return c.redirect(`/superadmin/event/staff/${c.req.param('event_id')}`);
+    const eventId = c.req.param('event_id');
+    await db.prepare("INSERT INTO event_admins (event_id, admin_username) VALUES (?, ?)").bind(eventId, c.req.param('username')).run();
+    invalidateAllCaches();
+    return c.redirect(`/superadmin/event/staff/${eventId}`);
 });
 
 // Superadmin - Remove Staff from Event
@@ -771,23 +884,55 @@ app.post('/superadmin/event/staff/remove/:event_id/:username', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
     const db = getDb(c);
-    await db.prepare("DELETE FROM event_admins WHERE event_id = ? AND admin_username = ?").bind(c.req.param('event_id'), c.req.param('username')).run();
-    return c.redirect(`/superadmin/event/staff/${c.req.param('event_id')}`);
+    const eventId = c.req.param('event_id');
+    await db.prepare("DELETE FROM event_admins WHERE event_id = ? AND admin_username = ?").bind(eventId, c.req.param('username')).run();
+    invalidateAllCaches();
+    return c.redirect(`/superadmin/event/staff/${eventId}`);
 });
 
 // Superadmin - Edit Event Form
 app.get('/superadmin/event/edit/:event_id', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
-    const eventId = c.req.param('event_id');
+    const eventId = parseInt(c.req.param('event_id'), 10);
     const db = getDb(c);
     const user = await getUser(db, session.username);
-    const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
-    const fields = (await db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()).results || [];
+
+    let data = MEMORY_CACHE.eventFields.get(eventId);
+    if (!data || (Date.now() - data.time > CACHE_TTL)) {
+        const sql = getSql(c);
+        if (sql) {
+            const rows = await sql`
+                SELECT 
+                    (SELECT row_to_json(e) FROM events e WHERE e.event_id = ${eventId}) as event,
+                    (SELECT json_agg(f) FROM (SELECT * FROM event_fields WHERE event_id = ${eventId} ORDER BY field_order ASC, field_id ASC) f) as fields;
+            `;
+            const r = rows && rows[0] ? rows[0] : {};
+            if (!r.event) return c.redirect('/superadmin');
+            data = {
+                event: r.event,
+                fields: r.fields || [],
+                time: Date.now()
+            };
+        } else {
+            const [event, fieldsRes] = await Promise.all([
+                db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first(),
+                db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()
+            ]);
+            if (!event) return c.redirect('/superadmin');
+            data = {
+                event,
+                fields: fieldsRes.results || [],
+                time: Date.now()
+            };
+        }
+        MEMORY_CACHE.eventFields.set(eventId, data);
+    }
+
     return c.html(render('superadmin/edit_form', {
         user,
-        event,
-        fields,
+        event: data.event,
+        fields: data.fields,
         flash_messages: [],
         request: { path: `/superadmin/event/edit/${eventId}` }
     }));
@@ -802,6 +947,7 @@ app.post('/superadmin/event/edit/:event_id', async (c) => {
     const isRequired = body.is_required ? 1 : 0;
     await db.prepare("INSERT INTO event_fields (event_id, field_label, field_type, is_required) VALUES (?, ?, ?, ?)")
         .bind(eventId, body.field_label, body.field_type, isRequired).run();
+    invalidateAllCaches();
     return c.redirect(`/superadmin/event/edit/${eventId}`);
 });
 
@@ -813,6 +959,7 @@ app.post('/superadmin/field/delete/:field_id', async (c) => {
     const field = await db.prepare("SELECT event_id FROM event_fields WHERE field_id = ?").bind(c.req.param('field_id')).first();
     if (field) {
         await db.prepare("DELETE FROM event_fields WHERE field_id = ?").bind(c.req.param('field_id')).run();
+        invalidateAllCaches();
         return c.redirect(`/superadmin/event/edit/${field.event_id}`);
     }
     return c.redirect('/superadmin');
@@ -848,12 +995,28 @@ app.get('/staff/events', async (c) => {
     if (!session.username) return c.redirect('/');
     const db = getDb(c);
     const user = await getUser(db, session.username);
-    const result = await db.prepare("SELECT e.* FROM events e JOIN event_admins ea ON e.event_id = ea.event_id WHERE ea.admin_username = ?").bind(session.username).all();
-    const baseUrl = getBaseUrl(c);
-    const events = (result.results || []).map(e => ({ ...e, url: `${baseUrl}/attend/${e.event_id}` }));
+
+    let events = MEMORY_CACHE.staffEvents.get(session.username);
+    if (!events || (Date.now() - events.time > CACHE_TTL)) {
+        const sql = getSql(c);
+        let rawEvents = [];
+        if (sql) {
+            rawEvents = await sql`SELECT e.* FROM events e JOIN event_admins ea ON e.event_id = ea.event_id WHERE ea.admin_username = ${session.username}`;
+        } else {
+            const result = await db.prepare("SELECT e.* FROM events e JOIN event_admins ea ON e.event_id = ea.event_id WHERE ea.admin_username = ?").bind(session.username).all();
+            rawEvents = result.results || [];
+        }
+        const baseUrl = getBaseUrl(c);
+        events = {
+            data: rawEvents.map(e => ({ ...e, url: `${baseUrl}/attend/${e.event_id}` })),
+            time: Date.now()
+        };
+        MEMORY_CACHE.staffEvents.set(session.username, events);
+    }
+
     return c.html(render('staff/events', {
         user,
-        events,
+        events: events.data,
         flash_messages: [],
         request: { path: '/staff/events' }
     }));
@@ -883,6 +1046,8 @@ app.post('/staff/update', async (c) => {
     query += " WHERE username = ?";
     params.push(session.username);
     await db.prepare(query).bind(...params).run();
+    MEMORY_CACHE.users.delete(session.username);
+    invalidateAllCaches();
     return c.redirect('/staff/profile');
 });
 
@@ -890,30 +1055,58 @@ app.post('/staff/update', async (c) => {
 app.get('/staff/event/:event_id/logs', async (c) => {
     const session = getSession(c);
     if (!session.username) return c.redirect('/');
-    const eventId = c.req.param('event_id');
+    const eventId = parseInt(c.req.param('event_id'), 10);
     const db = getDb(c);
     const user = await getUser(db, session.username);
+
+    const sql = getSql(c);
+    let event, fields, logsRaw, log_count;
+
+    if (sql) {
+        const rows = await sql`
+            SELECT 
+                (SELECT row_to_json(e) FROM events e WHERE e.event_id = ${eventId}) as event,
+                (SELECT json_agg(f) FROM (SELECT * FROM event_fields WHERE event_id = ${eventId} ORDER BY field_order ASC, field_id ASC) f) as fields,
+                (SELECT json_agg(l) FROM (SELECT * FROM logs WHERE event_id = ${eventId} ORDER BY log_id DESC LIMIT 50) l) as logs,
+                (SELECT COUNT(*) FROM logs WHERE event_id = ${eventId}) as count;
+        `;
+        const r = rows && rows[0] ? rows[0] : {};
+        event = r.event;
+        fields = r.fields || [];
+        logsRaw = r.logs || [];
+        log_count = parseInt(r.count || '0', 10);
+    } else {
+        const [eventRes, fieldsRes, logsRawRes, countResult] = await Promise.all([
+            db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first(),
+            db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all(),
+            db.prepare("SELECT * FROM logs WHERE event_id = ? ORDER BY log_id DESC LIMIT 50").bind(eventId).all(),
+            db.prepare("SELECT COUNT(*) as count FROM logs WHERE event_id = ?").bind(eventId).first()
+        ]);
+        event = eventRes;
+        fields = fieldsRes.results || [];
+        logsRaw = logsRawRes.results || [];
+        log_count = parseInt(countResult?.count || '0', 10);
+    }
+
+    if (!event) return c.redirect('/superadmin');
 
     if (session.role !== 'superadmin') {
         const access = await db.prepare("SELECT 1 FROM event_admins WHERE event_id = ? AND admin_username = ?").bind(eventId, session.username).first();
         if (!access) return c.redirect('/staff/events');
     }
 
-    const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
-    const fields = (await db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()).results || [];
-    const logsRaw = (await db.prepare("SELECT * FROM logs WHERE event_id = ? ORDER BY log_id DESC LIMIT 50").bind(eventId).all()).results || [];
-
     const logs = logsRaw.map(l => {
         let dataObj = {};
-        try { dataObj = JSON.parse(l.data); } catch { dataObj = {}; }
+        if (typeof l.data === 'object' && l.data !== null) {
+            dataObj = l.data;
+        } else {
+            try { dataObj = JSON.parse(l.data); } catch { dataObj = {}; }
+        }
         return {
             ...l,
             data: dataObj
         };
     });
-
-    const countResult = await db.prepare("SELECT COUNT(*) as count FROM logs WHERE event_id = ?").bind(eventId).first();
-    const log_count = countResult?.count || 0;
 
     return c.html(render('staff/logs', {
         user,
@@ -937,11 +1130,30 @@ app.post('/staff/log/delete/:log_id/:event_id', async (c) => {
 
 // Public - Attend Event
 app.get('/attend/:event_id', async (c) => {
-    const eventId = c.req.param('event_id');
+    const eventId = parseInt(c.req.param('event_id'), 10);
     const db = getDb(c);
-    const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
+    const sql = getSql(c);
+
+    let event, fields;
+    if (sql) {
+        const rows = await sql`
+            SELECT 
+                (SELECT row_to_json(e) FROM events e WHERE e.event_id = ${eventId}) as event,
+                (SELECT json_agg(f) FROM (SELECT * FROM event_fields WHERE event_id = ${eventId} ORDER BY field_order ASC, field_id ASC) f) as fields;
+        `;
+        const r = rows && rows[0] ? rows[0] : {};
+        event = r.event;
+        fields = r.fields || [];
+    } else {
+        const [eventRes, fieldsRes] = await Promise.all([
+            db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first(),
+            db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()
+        ]);
+        event = eventRes;
+        fields = fieldsRes.results || [];
+    }
+
     if (!event) return c.text('Event not found', 404);
-    const fields = (await db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()).results || [];
     return c.html(render('attend', {
         event,
         fields,
@@ -951,12 +1163,27 @@ app.get('/attend/:event_id', async (c) => {
 });
 
 app.post('/attend/:event_id', async (c) => {
-    const eventId = c.req.param('event_id');
+    const eventId = parseInt(c.req.param('event_id'), 10);
     const db = getDb(c);
+    const sql = getSql(c);
     const body = await c.req.parseBody();
-    const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
+
+    let event, fields;
+    if (sql) {
+        const rows = await sql`
+            SELECT 
+                (SELECT row_to_json(e) FROM events e WHERE e.event_id = ${eventId}) as event,
+                (SELECT json_agg(f) FROM (SELECT * FROM event_fields WHERE event_id = ${eventId} ORDER BY field_order ASC, field_id ASC) f) as fields;
+        `;
+        const r = rows && rows[0] ? rows[0] : {};
+        event = r.event;
+        fields = r.fields || [];
+    } else {
+        event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
+        fields = (await db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()).results || [];
+    }
+
     if (!event) return c.text('Event not found', 404);
-    const fields = (await db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()).results || [];
 
     const data = {};
     for (const field of fields) {
