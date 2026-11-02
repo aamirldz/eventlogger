@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import QRCode from 'qrcode';
+import { neon } from '@neondatabase/serverless';
 
 const app = new Hono();
 
@@ -545,6 +546,45 @@ function getBaseUrl(c) {
 // DATABASE HELPERS
 // ============================
 
+function getDb(c) {
+    const dbUrl = c.env.DATABASE_URL;
+    if (dbUrl) {
+        const sql = neon(dbUrl);
+        return {
+            prepare(query) {
+                const makeStatement = (params = []) => ({
+                    async first() {
+                        let pIndex = 1;
+                        const pgQuery = query.replace(/\?/g, () => `$${pIndex++}`);
+                        const rows = await sql.query(pgQuery, params);
+                        return rows && rows[0] ? rows[0] : null;
+                    },
+                    async all() {
+                        let pIndex = 1;
+                        const pgQuery = query.replace(/\?/g, () => `$${pIndex++}`);
+                        const rows = await sql.query(pgQuery, params);
+                        return { results: rows || [] };
+                    },
+                    async run() {
+                        let pIndex = 1;
+                        const pgQuery = query.replace(/\?/g, () => `$${pIndex++}`);
+                        await sql.query(pgQuery, params);
+                        return { success: true };
+                    }
+                });
+
+                return {
+                    ...makeStatement([]),
+                    bind(...params) {
+                        return makeStatement(params);
+                    }
+                };
+            }
+        };
+    }
+    return c.env.DB;
+}
+
 async function getUser(db, username) {
     const u = await db.prepare('SELECT * FROM users WHERE username = ?').bind(username).first();
     if (u) {
@@ -584,7 +624,7 @@ app.get('/', async (c) => {
 
 app.post('/', async (c) => {
     const body = await c.req.parseBody();
-    const db = c.env.DB;
+    const db = getDb(c);
     const user = await getUser(db, body.username);
 
     if (user && user.password === body.password) {
@@ -602,7 +642,7 @@ app.get('/register', (c) => c.html(render('register', { user: null, flash_messag
 
 app.post('/register', async (c) => {
     const body = await c.req.parseBody();
-    const db = c.env.DB;
+    const db = getDb(c);
 
     const existing = await getUser(db, body.username);
     if (existing) {
@@ -626,7 +666,7 @@ app.get('/superadmin', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
 
-    const db = c.env.DB;
+    const db = getDb(c);
     const user = await getUser(db, session.username);
     const pending_staff_raw = (await db.prepare("SELECT * FROM users WHERE role != 'superadmin' AND approved = 0").all()).results || [];
     const approved_staff_raw = (await db.prepare("SELECT * FROM users WHERE role != 'superadmin' AND approved = 1").all()).results || [];
@@ -657,7 +697,7 @@ app.post('/superadmin/event/create', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
     const body = await c.req.parseBody();
-    const db = c.env.DB;
+    const db = getDb(c);
     await db.prepare("INSERT INTO events (event_name) VALUES (?)").bind(body.event_name).run();
     return c.redirect('/superadmin');
 });
@@ -666,7 +706,7 @@ app.post('/superadmin/event/create', async (c) => {
 app.post('/superadmin/approve/:username', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
-    const db = c.env.DB;
+    const db = getDb(c);
     await db.prepare("UPDATE users SET approved = 1 WHERE username = ?").bind(c.req.param('username')).run();
     return c.redirect('/superadmin');
 });
@@ -675,7 +715,7 @@ app.post('/superadmin/approve/:username', async (c) => {
 app.post('/superadmin/delete/:username', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
-    const db = c.env.DB;
+    const db = getDb(c);
     await db.prepare("DELETE FROM users WHERE username = ?").bind(c.req.param('username')).run();
     await db.prepare("DELETE FROM event_admins WHERE admin_username = ?").bind(c.req.param('username')).run();
     return c.redirect('/superadmin');
@@ -686,7 +726,7 @@ app.post('/superadmin/event/delete/:event_id', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
     const eventId = c.req.param('event_id');
-    const db = c.env.DB;
+    const db = getDb(c);
     await db.prepare("DELETE FROM events WHERE event_id = ?").bind(eventId).run();
     await db.prepare("DELETE FROM event_fields WHERE event_id = ?").bind(eventId).run();
     await db.prepare("DELETE FROM event_admins WHERE event_id = ?").bind(eventId).run();
@@ -699,7 +739,7 @@ app.get('/superadmin/event/staff/:event_id', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
     const eventId = c.req.param('event_id');
-    const db = c.env.DB;
+    const db = getDb(c);
     const user = await getUser(db, session.username);
     const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
     if (!event) return c.redirect('/superadmin');
@@ -721,7 +761,7 @@ app.get('/superadmin/event/staff/:event_id', async (c) => {
 app.post('/superadmin/event/staff/add/:event_id/:username', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
-    const db = c.env.DB;
+    const db = getDb(c);
     await db.prepare("INSERT INTO event_admins (event_id, admin_username) VALUES (?, ?)").bind(c.req.param('event_id'), c.req.param('username')).run();
     return c.redirect(`/superadmin/event/staff/${c.req.param('event_id')}`);
 });
@@ -730,7 +770,7 @@ app.post('/superadmin/event/staff/add/:event_id/:username', async (c) => {
 app.post('/superadmin/event/staff/remove/:event_id/:username', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
-    const db = c.env.DB;
+    const db = getDb(c);
     await db.prepare("DELETE FROM event_admins WHERE event_id = ? AND admin_username = ?").bind(c.req.param('event_id'), c.req.param('username')).run();
     return c.redirect(`/superadmin/event/staff/${c.req.param('event_id')}`);
 });
@@ -740,7 +780,7 @@ app.get('/superadmin/event/edit/:event_id', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
     const eventId = c.req.param('event_id');
-    const db = c.env.DB;
+    const db = getDb(c);
     const user = await getUser(db, session.username);
     const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
     const fields = (await db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()).results || [];
@@ -758,7 +798,7 @@ app.post('/superadmin/event/edit/:event_id', async (c) => {
     if (session.role !== 'superadmin') return c.redirect('/');
     const eventId = c.req.param('event_id');
     const body = await c.req.parseBody();
-    const db = c.env.DB;
+    const db = getDb(c);
     const isRequired = body.is_required ? 1 : 0;
     await db.prepare("INSERT INTO event_fields (event_id, field_label, field_type, is_required) VALUES (?, ?, ?, ?)")
         .bind(eventId, body.field_label, body.field_type, isRequired).run();
@@ -769,7 +809,7 @@ app.post('/superadmin/event/edit/:event_id', async (c) => {
 app.post('/superadmin/field/delete/:field_id', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
-    const db = c.env.DB;
+    const db = getDb(c);
     const field = await db.prepare("SELECT event_id FROM event_fields WHERE field_id = ?").bind(c.req.param('field_id')).first();
     if (field) {
         await db.prepare("DELETE FROM event_fields WHERE field_id = ?").bind(c.req.param('field_id')).run();
@@ -782,7 +822,7 @@ app.post('/superadmin/field/delete/:field_id', async (c) => {
 app.get('/superadmin/profile', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
-    const db = c.env.DB;
+    const db = getDb(c);
     const user = await getUser(db, session.username);
     return c.html(render('superadmin/profile', {
         user,
@@ -795,7 +835,7 @@ app.post('/superadmin/update', async (c) => {
     const session = getSession(c);
     if (session.role !== 'superadmin') return c.redirect('/');
     const body = await c.req.parseBody();
-    const db = c.env.DB;
+    const db = getDb(c);
     if (body.password) {
         await db.prepare("UPDATE users SET password = ? WHERE username = ?").bind(body.password, session.username).run();
     }
@@ -806,7 +846,7 @@ app.post('/superadmin/update', async (c) => {
 app.get('/staff/events', async (c) => {
     const session = getSession(c);
     if (!session.username) return c.redirect('/');
-    const db = c.env.DB;
+    const db = getDb(c);
     const user = await getUser(db, session.username);
     const result = await db.prepare("SELECT e.* FROM events e JOIN event_admins ea ON e.event_id = ea.event_id WHERE ea.admin_username = ?").bind(session.username).all();
     const baseUrl = getBaseUrl(c);
@@ -823,7 +863,7 @@ app.get('/staff/events', async (c) => {
 app.get('/staff/profile', async (c) => {
     const session = getSession(c);
     if (!session.username) return c.redirect('/');
-    const db = c.env.DB;
+    const db = getDb(c);
     const user = await getUser(db, session.username);
     return c.html(render('staff/profile', {
         user,
@@ -836,7 +876,7 @@ app.post('/staff/update', async (c) => {
     const session = getSession(c);
     if (!session.username) return c.redirect('/');
     const body = await c.req.parseBody();
-    const db = c.env.DB;
+    const db = getDb(c);
     let query = "UPDATE users SET name = ?, phone = ?, address = ?";
     const params = [body.name, body.phone, body.address];
     if (body.password) { query += ", password = ?"; params.push(body.password); }
@@ -851,7 +891,7 @@ app.get('/staff/event/:event_id/logs', async (c) => {
     const session = getSession(c);
     if (!session.username) return c.redirect('/');
     const eventId = c.req.param('event_id');
-    const db = c.env.DB;
+    const db = getDb(c);
     const user = await getUser(db, session.username);
 
     if (session.role !== 'superadmin') {
@@ -890,7 +930,7 @@ app.get('/staff/event/:event_id/logs', async (c) => {
 app.post('/staff/log/delete/:log_id/:event_id', async (c) => {
     const session = getSession(c);
     if (!session.username) return c.redirect('/');
-    const db = c.env.DB;
+    const db = getDb(c);
     await db.prepare("DELETE FROM logs WHERE log_id = ?").bind(c.req.param('log_id')).run();
     return c.redirect(`/staff/event/${c.req.param('event_id')}/logs`);
 });
@@ -898,7 +938,7 @@ app.post('/staff/log/delete/:log_id/:event_id', async (c) => {
 // Public - Attend Event
 app.get('/attend/:event_id', async (c) => {
     const eventId = c.req.param('event_id');
-    const db = c.env.DB;
+    const db = getDb(c);
     const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
     if (!event) return c.text('Event not found', 404);
     const fields = (await db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()).results || [];
@@ -912,7 +952,7 @@ app.get('/attend/:event_id', async (c) => {
 
 app.post('/attend/:event_id', async (c) => {
     const eventId = c.req.param('event_id');
-    const db = c.env.DB;
+    const db = getDb(c);
     const body = await c.req.parseBody();
     const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
     if (!event) return c.text('Event not found', 404);
@@ -968,7 +1008,7 @@ app.get('/api/event/:event_id/logs', async (c) => {
     if (!session.username) return c.json({ error: 'Unauthorized' }, 401);
     const eventId = c.req.param('event_id');
     const sinceId = parseInt(c.req.query('since') || '0');
-    const db = c.env.DB;
+    const db = getDb(c);
 
     const logsRaw = (await db.prepare("SELECT * FROM logs WHERE event_id = ? AND log_id > ? ORDER BY log_id DESC").bind(eventId, sinceId).all()).results || [];
     const logs = logsRaw.map(l => {
@@ -991,7 +1031,7 @@ app.get('/api/event/:event_id/export', async (c) => {
     const session = getSession(c);
     if (!session.username) return c.redirect('/');
     const eventId = c.req.param('event_id');
-    const db = c.env.DB;
+    const db = getDb(c);
 
     const event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first();
     if (!event) return c.text('Event not found', 404);

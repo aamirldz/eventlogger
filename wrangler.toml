@@ -4,6 +4,7 @@ compatibility_date = "2024-04-03"
 
 [vars]
 BASE_URL = "https://eventlogger.faizanldz07.workers.dev"
+DATABASE_URL = "postgresql://neondb_owner:npg_aPE6gq1NsTOn@ep-cold-boat-ar8rvnne-pooler.c-4.us-west-2.aws.neon.tech/neondb?sslmode=require"
 
 [[d1_databases]]
 binding = "DB"
