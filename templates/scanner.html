@@ -1,0 +1,529 @@
+{% extends "layout.html" %}
+
+{% block title %}Live Camera Scanner - {{ event['event_name'] }} - EventPass{% endblock %}
+
+{% block header_button %}
+{% include 'components/user_header.html' %}
+{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <a href="{% if user and user.role == 'staff' %}{{ url_for('staff_events') }}{% else %}{{ url_for('superadmin_dashboard') }}{% endif %}"
+            class="text-sm font-medium text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Dashboard
+        </a>
+        <div class="flex items-center gap-3 mt-2">
+            <h2 class="text-2xl md:text-3xl font-bold text-white tracking-tight">{{ event['event_name'] }}</h2>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> GATE SCANNER LIVE
+            </span>
+        </div>
+        <p class="text-slate-400 text-sm mt-1">Live web-camera ticket verification & anti-fraud duplicate detection.</p>
+    </div>
+
+    <div class="flex items-center gap-2">
+        <a href="{{ url_for('view_logs', event_id=event['event_id']) }}" class="btn btn-outline text-xs py-2 px-3">
+            <i data-lucide="list" class="w-4 h-4"></i> View Table
+        </a>
+        <a href="{{ url_for('attend_event', event_id=event['event_id']) }}" target="_blank" class="btn btn-outline text-xs py-2 px-3 text-blue-400 border-blue-500/30">
+            <i data-lucide="external-link" class="w-4 h-4"></i> Public Pass Form
+        </a>
+    </div>
+</div>
+
+<!-- Live Gate Analytics Cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="card p-4">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-slate-400">Total Registered</span>
+            <i data-lucide="users" class="w-4 h-4 text-blue-400"></i>
+        </div>
+        <div class="text-2xl font-bold text-white font-mono" id="stat-total">{{ totalCount }}</div>
+        <span class="text-xs text-slate-500">Attendee passes issued</span>
+    </div>
+
+    <div class="card p-4 border-emerald-500/30 bg-emerald-950/20">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-emerald-400">Checked In</span>
+            <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+        </div>
+        <div class="text-2xl font-bold text-emerald-400 font-mono" id="stat-checked">{{ checkedInCount }}</div>
+        <span class="text-xs text-emerald-500/80">Verified gate entries</span>
+    </div>
+
+    <div class="card p-4">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-slate-400">Remaining</span>
+            <i data-lucide="clock" class="w-4 h-4 text-amber-400"></i>
+        </div>
+        <div class="text-2xl font-bold text-slate-200 font-mono" id="stat-remaining">{{ totalCount - checkedInCount if totalCount >= checkedInCount else 0 }}</div>
+        <span class="text-xs text-slate-500">Unchecked passes</span>
+    </div>
+
+    <div class="card p-4">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-medium text-slate-400">Capacity</span>
+            <i data-lucide="pie-chart" class="w-4 h-4 text-indigo-400"></i>
+        </div>
+        <div class="text-2xl font-bold text-white font-mono" id="stat-pct">{{ capacityPct }}%</div>
+        <div class="w-full bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
+            <div id="stat-progress" class="bg-gradient-to-r from-blue-500 to-emerald-400 h-1.5 rounded-full transition-all duration-300" style="width: {{ capacityPct }}%;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Scanner Workspace -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Camera Viewfinder Column -->
+    <div class="lg:col-span-7">
+        <div class="card p-5 relative overflow-hidden">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="camera" class="w-5 h-5 text-blue-400"></i>
+                    <h3 class="font-semibold text-white">Live Camera Scanner</h3>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="btn-toggle-sound" class="btn btn-outline text-xs py-1.5 px-2.5 h-8" title="Audio Chime Toggle">
+                        <i data-lucide="volume-2" id="icon-sound" class="w-4 h-4 text-emerald-400"></i>
+                    </button>
+                    <button type="button" id="btn-switch-cam" class="btn btn-outline text-xs py-1.5 px-2.5 h-8" title="Switch Camera">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Switch
+                    </button>
+                </div>
+            </div>
+
+            <!-- Viewfinder Container -->
+            <div class="relative bg-slate-950/80 rounded-xl overflow-hidden border border-slate-800 min-h-[320px] flex items-center justify-center">
+                <div id="qr-reader" class="w-full h-full min-h-[320px]"></div>
+                <div class="scanner-laser" id="scanner-laser"></div>
+
+                <!-- Camera Loading Placeholder -->
+                <div id="camera-loading" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 z-20 transition-opacity">
+                    <div class="w-12 h-12 border-3 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-3"></div>
+                    <p class="text-sm font-medium text-slate-300">Initializing Gate Camera...</p>
+                    <p class="text-xs text-slate-500 mt-1">Please allow camera permissions if prompted</p>
+                </div>
+            </div>
+
+            <!-- Manual Token Fallback (Viva / Demo Input) -->
+            <div class="mt-4 pt-4 border-t border-slate-800">
+                <form id="manual-scan-form" class="flex gap-2">
+                    <div class="relative flex-grow">
+                        <i data-lucide="scan-line" class="w-4 h-4 text-slate-400 absolute left-3 top-3.5"></i>
+                        <input type="text" id="manual-token-input" placeholder="Or enter Ticket Pass ID (e.g. PASS-E1-...)" 
+                            class="w-full pl-9 pr-3 py-2.5 form-input font-mono text-sm uppercase">
+                    </div>
+                    <button type="submit" class="btn btn-primary px-4 py-2 text-sm flex-shrink-0">
+                        Verify Pass
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Gate Result & Verification Stream Column -->
+    <div class="lg:col-span-5 flex flex-col gap-6">
+        <!-- Verification Result Banner -->
+        <div id="result-container" class="card p-6 border-slate-800 flex flex-col justify-center min-h-[200px] transition-all">
+            <!-- Idle State -->
+            <div id="result-idle" class="text-center py-6">
+                <div class="w-16 h-16 rounded-full bg-slate-800/60 border border-slate-700/80 mx-auto flex items-center justify-center mb-3">
+                    <i data-lucide="qr-code" class="w-8 h-8 text-slate-400"></i>
+                </div>
+                <h4 class="text-lg font-semibold text-slate-200">Ready to Scan</h4>
+                <p class="text-sm text-slate-400 mt-1">Hold the digital attendee pass in front of the camera to verify access.</p>
+            </div>
+
+            <!-- Success State -->
+            <div id="result-success" class="hidden text-center py-2">
+                <div class="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/40 mx-auto flex items-center justify-center mb-3 shadow-lg shadow-emerald-500/20">
+                    <i data-lucide="check" class="w-8 h-8 text-emerald-400"></i>
+                </div>
+                <span class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 uppercase tracking-wider mb-2">
+                    Access Granted • Checked In
+                </span>
+                <h3 class="text-2xl font-bold text-white" id="success-attendee-name">Jane Doe</h3>
+                <p class="text-xs font-mono text-slate-400 mt-1" id="success-token">PASS-E1-ABCD-1234</p>
+                <div class="mt-4 p-3 rounded-lg bg-emerald-950/30 border border-emerald-500/20 text-xs text-emerald-300 font-mono">
+                    Verified at <span id="success-time">10:45:12 AM</span>
+                </div>
+            </div>
+
+            <!-- Duplicate Alert State -->
+            <div id="result-duplicate" class="hidden text-center py-2">
+                <div class="w-14 h-14 rounded-full bg-amber-500/20 border border-amber-500/40 mx-auto flex items-center justify-center mb-3 shadow-lg shadow-amber-500/20">
+                    <i data-lucide="shield-alert" class="w-8 h-8 text-amber-400"></i>
+                </div>
+                <span class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider mb-2">
+                    Duplicate Pass • Entry Denied
+                </span>
+                <h3 class="text-2xl font-bold text-white" id="duplicate-attendee-name">Jane Doe</h3>
+                <p class="text-xs font-mono text-slate-400 mt-1" id="duplicate-token">PASS-E1-ABCD-1234</p>
+                <div class="mt-4 p-3 rounded-lg bg-amber-950/40 border border-amber-500/30 text-xs text-amber-300">
+                    <p class="font-semibold" id="duplicate-details">Already checked in earlier today.</p>
+                    <p class="text-slate-400 mt-1">This ticket cannot be used twice.</p>
+                </div>
+            </div>
+
+            <!-- Invalid State -->
+            <div id="result-error" class="hidden text-center py-2">
+                <div class="w-14 h-14 rounded-full bg-red-500/20 border border-red-500/40 mx-auto flex items-center justify-center mb-3">
+                    <i data-lucide="x-circle" class="w-8 h-8 text-red-400"></i>
+                </div>
+                <span class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-300 border border-red-500/30 uppercase tracking-wider mb-2">
+                    Invalid Ticket
+                </span>
+                <h4 class="text-lg font-bold text-white" id="error-message">No matching registration found</h4>
+                <p class="text-xs text-slate-400 mt-2">Verify ticket code or register attendee.</p>
+            </div>
+        </div>
+
+        <!-- Recent Scans Stream -->
+        <div class="card p-5 flex-grow">
+            <div class="flex items-center justify-between mb-3">
+                <h4 class="font-semibold text-white text-sm flex items-center gap-2">
+                    <i data-lucide="history" class="w-4 h-4 text-slate-400"></i> Recent Gate Scans
+                </h4>
+                <span class="text-xs text-slate-500 font-mono" id="recent-count">{{ recentScans | length }}</span>
+            </div>
+
+            <div id="recent-scans-list" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {% if recentScans %}
+                {% for scan in recentScans %}
+                <div class="p-3 rounded-lg bg-slate-900/60 border border-slate-800 flex items-center justify-between text-xs">
+                    <div>
+                        <span class="font-semibold text-white block">{{ scan['attendee_name'] }}</span>
+                        <span class="text-slate-400 font-mono text-[11px]">{{ scan['ticket_token'] }}</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="badge-checked px-2 py-0.5 rounded text-[11px] font-medium block mb-0.5">Checked In</span>
+                        <span class="text-slate-500 text-[10px]">{{ scan['checked_in_at'] }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div id="no-scans-msg" class="text-center py-8 text-slate-500 text-xs">
+                    No scans recorded for this gate session yet.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- HTML5 QR Code Library from Cloudflare CDN -->
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<script>
+(function() {
+    const EVENT_ID = {{ event['event_id'] }};
+    let html5QrCode = null;
+    let isScanning = false;
+    let isAudioEnabled = true;
+    let currentFacingMode = "environment"; // Try rear camera first
+    let lastScannedToken = "";
+    let lastScanTime = 0;
+
+    // Web Audio API Synthesizer (Instant Chimes with Zero External Dependencies)
+    let audioCtx = null;
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function playSuccessChime() {
+        if (!isAudioEnabled) return;
+        try {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+            osc.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.15); // A6
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.3);
+        } catch(e) {}
+    }
+
+    function playDuplicateBuzz() {
+        if (!isAudioEnabled) return;
+        try {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(220, audioCtx.currentTime); // Low A3
+            gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.35);
+        } catch(e) {}
+    }
+
+    function playErrorTone() {
+        if (!isAudioEnabled) return;
+        try {
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.25);
+        } catch(e) {}
+    }
+
+    // Sound toggle
+    const soundBtn = document.getElementById('btn-toggle-sound');
+    const soundIcon = document.getElementById('icon-sound');
+    soundBtn.addEventListener('click', () => {
+        initAudio();
+        isAudioEnabled = !isAudioEnabled;
+        if (isAudioEnabled) {
+            soundIcon.classList.remove('text-slate-500');
+            soundIcon.classList.add('text-emerald-400');
+            playSuccessChime();
+        } else {
+            soundIcon.classList.remove('text-emerald-400');
+            soundIcon.classList.add('text-slate-500');
+        }
+    });
+
+    // Camera Switch button
+    const switchCamBtn = document.getElementById('btn-switch-cam');
+    switchCamBtn.addEventListener('click', async () => {
+        currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+        await restartCamera();
+    });
+
+    // Start / Restart Camera
+    async function startCamera() {
+        const loadingEl = document.getElementById('camera-loading');
+        try {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("qr-reader");
+            }
+            const config = {
+                fps: 15,
+                qrbox: { width: 260, height: 260 },
+                aspectRatio: 1.0
+            };
+
+            await html5QrCode.start(
+                { facingMode: currentFacingMode },
+                config,
+                onQrCodeScanned,
+                () => {} // suppress per-frame scanning misses
+            );
+
+            isScanning = true;
+            if (loadingEl) loadingEl.style.display = 'none';
+        } catch (err) {
+            console.warn("Could not start camera with " + currentFacingMode + ", trying default camera...", err);
+            try {
+                await html5QrCode.start(
+                    { facingMode: "user" },
+                    { fps: 15, qrbox: { width: 260, height: 260 } },
+                    onQrCodeScanned,
+                    () => {}
+                );
+                isScanning = true;
+                if (loadingEl) loadingEl.style.display = 'none';
+            } catch(e2) {
+                console.error("Camera access failed completely:", e2);
+                if (loadingEl) {
+                    loadingEl.innerHTML = `
+                        <div class="text-center p-4">
+                            <i data-lucide="video-off" class="w-10 h-10 text-amber-400 mx-auto mb-2"></i>
+                            <p class="text-sm font-semibold text-slate-200">Camera Access Blocked or Unavailable</p>
+                            <p class="text-xs text-slate-400 mt-1 max-w-xs">Use the manual input below to verify ticket tokens.</p>
+                        </div>
+                    `;
+                    if (window.lucide) window.lucide.createIcons();
+                }
+            }
+        }
+    }
+
+    async function restartCamera() {
+        if (html5QrCode && isScanning) {
+            try {
+                await html5QrCode.stop();
+                isScanning = false;
+            } catch(e) {}
+        }
+        const loadingEl = document.getElementById('camera-loading');
+        if (loadingEl) loadingEl.style.display = 'flex';
+        await startCamera();
+    }
+
+    // QR Scan Handler
+    async function onQrCodeScanned(decodedText) {
+        const now = Date.now();
+        // Prevent rapid duplicate scans within 2 seconds for the exact same token
+        if (decodedText === lastScannedToken && now - lastScanTime < 2500) {
+            return;
+        }
+        lastScannedToken = decodedText;
+        lastScanTime = now;
+
+        await processTicketVerification(decodedText);
+    }
+
+    // Manual Form Submit
+    const manualForm = document.getElementById('manual-scan-form');
+    const manualInput = document.getElementById('manual-token-input');
+    manualForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const token = manualInput.value.trim();
+        if (!token) return;
+        await processTicketVerification(token);
+        manualInput.value = '';
+    });
+
+    // Verification Logic via API
+    async function processTicketVerification(token) {
+        initAudio();
+
+        // Extract token if decodedText is a full URL e.g. https://.../pass/PASS-123
+        let cleanToken = token;
+        if (token.includes('/pass/')) {
+            cleanToken = token.split('/pass/')[1].split('?')[0].split('#')[0];
+        }
+
+        try {
+            const res = await fetch('/api/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event_id: EVENT_ID,
+                    token: cleanToken
+                })
+            });
+
+            const result = await res.json();
+            displayVerificationResult(result);
+        } catch (err) {
+            console.error("Scan verification network error:", err);
+            displayVerificationResult({
+                success: false,
+                status: 'error',
+                message: 'Network verification failed'
+            });
+        }
+    }
+
+    function displayVerificationResult(res) {
+        const idle = document.getElementById('result-idle');
+        const success = document.getElementById('result-success');
+        const duplicate = document.getElementById('result-duplicate');
+        const error = document.getElementById('result-error');
+        const container = document.getElementById('result-container');
+
+        // Hide all
+        idle.classList.add('hidden');
+        success.classList.add('hidden');
+        duplicate.classList.add('hidden');
+        error.classList.add('hidden');
+
+        container.classList.remove('border-emerald-500', 'border-amber-500', 'border-red-500', 'bg-emerald-950/20', 'bg-amber-950/20', 'bg-red-950/20');
+
+        if (res.success && res.status === 'checked_in') {
+            // First time valid check-in
+            playSuccessChime();
+            container.classList.add('border-emerald-500', 'bg-emerald-950/20');
+            document.getElementById('success-attendee-name').textContent = res.attendee_name;
+            document.getElementById('success-token').textContent = res.ticket_token;
+            document.getElementById('success-time').textContent = res.checked_in_at;
+            success.classList.remove('hidden');
+
+            // Update live numbers
+            if (res.total_count !== undefined) {
+                document.getElementById('stat-total').textContent = res.total_count;
+                document.getElementById('stat-checked').textContent = res.checked_in_count;
+                const rem = Math.max(0, res.total_count - res.checked_in_count);
+                document.getElementById('stat-remaining').textContent = rem;
+                const cap = {{ capacity }};
+                const pct = Math.min(100, Math.round((res.checked_in_count / cap) * 100));
+                document.getElementById('stat-pct').textContent = pct + '%';
+                document.getElementById('stat-progress').style.width = pct + '%';
+            }
+
+            // Prepend to recent scans
+            prependRecentScan(res.attendee_name, res.ticket_token, res.checked_in_at);
+
+        } else if (res.status === 'already_checked_in') {
+            // DUPLICATE PASS
+            playDuplicateBuzz();
+            container.classList.add('border-amber-500', 'bg-amber-950/20');
+            document.getElementById('duplicate-attendee-name').textContent = res.attendee_name;
+            document.getElementById('duplicate-token').textContent = res.ticket_token;
+            document.getElementById('duplicate-details').textContent = res.details;
+            duplicate.classList.remove('hidden');
+
+        } else {
+            // Invalid ticket
+            playErrorTone();
+            container.classList.add('border-red-500', 'bg-red-950/20');
+            document.getElementById('error-message').textContent = res.message || 'Ticket not found';
+            error.classList.remove('hidden');
+        }
+
+        if (window.lucide) window.lucide.createIcons();
+    }
+
+    function prependRecentScan(name, token, time) {
+        const list = document.getElementById('recent-scans-list');
+        const noScans = document.getElementById('no-scans-msg');
+        if (noScans) noScans.remove();
+
+        const row = document.createElement('div');
+        row.className = 'p-3 rounded-lg bg-slate-900/60 border border-emerald-500/30 flex items-center justify-between text-xs animate-pulse';
+        row.innerHTML = `
+            <div>
+                <span class="font-semibold text-white block">${name}</span>
+                <span class="text-slate-400 font-mono text-[11px]">${token}</span>
+            </div>
+            <div class="text-right">
+                <span class="badge-checked px-2 py-0.5 rounded text-[11px] font-medium block mb-0.5">Checked In</span>
+                <span class="text-slate-400 text-[10px] font-mono">${time}</span>
+            </div>
+        `;
+        list.insertBefore(row, list.firstChild);
+        setTimeout(() => row.classList.remove('animate-pulse'), 1200);
+
+        const countEl = document.getElementById('recent-count');
+        if (countEl) {
+            countEl.textContent = parseInt(countEl.textContent || '0', 10) + 1;
+        }
+    }
+
+    // Start scanner on load
+    startCamera();
+
+    // Clean up camera on page unmount / SPA navigate
+    window.addEventListener('beforeunload', () => {
+        if (html5QrCode && isScanning) {
+            html5QrCode.stop().catch(() => {});
+        }
+    });
+})();
+</script>
+{% endblock %}

@@ -1,75 +1,124 @@
 {% extends "layout.html" %}
 
-{% block title %}Manage Event Staff - QMS{% endblock %}
+{% block title %}Manage Gate Staff - EventPass Enterprise{% endblock %}
 
 {% block header_button %}
 {% include 'components/user_header.html' %}
 {% endblock %}
 
 {% block content %}
-<h2 class="text-3xl font-semibold mb-2 text-gray-100">Manage Event Staff</h2>
-<p class="text-gray-300 mb-8">Assign and unassign approved staff for event: <b class="text-blue-300">{{
-        event['event_name'] }}</b>.</p>
+<div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <div class="flex items-center gap-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">
+            <a href="{{ url_for('superadmin_dashboard') }}" class="hover:underline">Dashboard</a>
+            <span>/</span>
+            <span>Gate Authorization</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Staff Gate Permissions</h1>
+        <p class="text-sm text-slate-400 mt-1">Assign authorized check-in staff to event: <b class="text-indigo-300 font-semibold">{{ event['event_name'] }}</b>.</p>
+    </div>
+    <a href="{{ url_for('superadmin_dashboard') }}" class="btn btn-secondary self-start sm:self-auto inline-flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Back to Dashboard
+    </a>
+</div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-    <div class="card p-8">
-        <h3 class="text-2xl font-semibold mb-4 text-white">Assigned ({{ assigned_staff | length }})</h3>
-        <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Authorized Check-in Staff -->
+    <div class="card p-6">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700/60">
+            <div>
+                <h2 class="text-base font-bold text-white flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                    Authorized Gate Staff
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">Staff with permission to scan tickets for this event</p>
+            </div>
+            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                {{ assigned_staff | length }} Active
+            </span>
+        </div>
+
+        <div class="space-y-3 max-h-96 overflow-y-auto pr-1">
             {% if assigned_staff %}
             {% for staff in assigned_staff %}
-            <div class="p-4 border border-green-700 rounded-lg bg-green-900/50 flex justify-between items-center">
-                <span class="font-semibold text-green-200">
-                    {% if staff['role'] == 'superadmin' %}
-                    <span
-                        class="bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full mr-2">Super</span>
-                    {% endif %}
-                    {{ staff['name'] }}
-                    <span class="font-mono text-gray-400">({{ staff['username'] }})</span>
-                </span>
-                <form
-                    action="{{ url_for('superadmin_remove_event_staff', event_id=event['event_id'], username=staff['username']) }}"
-                    method="POST">
-                    <button type="submit"
-                        class="text-red-400 hover:text-red-300 text-sm font-medium hover:underline">Remove</button>
+            <div class="p-3.5 rounded-xl bg-slate-900/60 border border-emerald-500/30 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-sm flex items-center justify-center border border-emerald-500/30">
+                        {{ staff['name'][0].upper() if staff['name'] else 'S' }}
+                    </div>
+                    <div>
+                        <div class="font-semibold text-white text-sm flex items-center gap-2">
+                            {{ staff['name'] }}
+                            {% if staff['role'] == 'superadmin' %}
+                            <span class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Super</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-xs font-mono text-slate-400">@{{ staff['username'] }}</div>
+                    </div>
+                </div>
+                <form action="{{ url_for('superadmin_remove_event_staff', event_id=event['event_id'], username=staff['username']) }}" method="POST">
+                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-600 rounded-lg border border-rose-500/30 transition">
+                        Revoke Access
+                    </button>
                 </form>
             </div>
             {% endfor %}
             {% else %}
-            <p class="text-gray-400">No staff are currently assigned.</p>
+            <div class="text-center py-10 border border-dashed border-slate-700 rounded-xl">
+                <p class="text-sm text-slate-400">No staff members assigned yet.</p>
+                <p class="text-xs text-slate-500 mt-1">Assign staff from the available list on the right.</p>
+            </div>
             {% endif %}
         </div>
     </div>
 
-    <div class="card p-8">
-        <h3 class="text-2xl font-semibold mb-4 text-white">Available ({{ unassigned_staff | length }})</h3>
-        <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
+    <!-- Available Staff Members -->
+    <div class="card p-6">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700/60">
+            <div>
+                <h2 class="text-base font-bold text-white flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                    Available Staff
+                </h2>
+                <p class="text-xs text-slate-400 mt-0.5">Approved team members ready for assignment</p>
+            </div>
+            <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                {{ unassigned_staff | length }} Available
+            </span>
+        </div>
+
+        <div class="space-y-3 max-h-96 overflow-y-auto pr-1">
             {% if unassigned_staff %}
             {% for staff in unassigned_staff %}
-            <div class="p-4 border border-gray-700 rounded-lg bg-gray-800/50 flex justify-between items-center">
-                <span class="font-semibold text-gray-200">
-                    {% if staff['role'] == 'superadmin' %}
-                    <span
-                        class="bg-yellow-500 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded-full mr-2">Super</span>
-                    {% endif %}
-                    {{ staff['name'] }}
-                    <span class="font-mono text-gray-400">({{ staff['username'] }})</span>
-                </span>
-                <form
-                    action="{{ url_for('superadmin_add_event_staff', event_id=event['event_id'], username=staff['username']) }}"
-                    method="POST">
-                    <button type="submit"
-                        class="text-blue-400 hover:text-blue-300 text-sm font-medium hover:underline">Assign</button>
+            <div class="p-3.5 rounded-xl bg-slate-900/40 border border-slate-700/60 hover:border-slate-600 transition flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-slate-800 text-slate-300 font-bold text-sm flex items-center justify-center border border-slate-700">
+                        {{ staff['name'][0].upper() if staff['name'] else 'S' }}
+                    </div>
+                    <div>
+                        <div class="font-semibold text-slate-200 text-sm flex items-center gap-2">
+                            {{ staff['name'] }}
+                            {% if staff['role'] == 'superadmin' %}
+                            <span class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Super</span>
+                            {% endif %}
+                        </div>
+                        <div class="text-xs font-mono text-slate-400">@{{ staff['username'] }}</div>
+                    </div>
+                </div>
+                <form action="{{ url_for('superadmin_add_event_staff', event_id=event['event_id'], username=staff['username']) }}" method="POST">
+                    <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-indigo-400 hover:text-white hover:bg-indigo-600 rounded-lg border border-indigo-500/30 transition">
+                        + Assign Gate
+                    </button>
                 </form>
             </div>
             {% endfor %}
             {% else %}
-            <p class="text-gray-400">All available staff are assigned.</p>
+            <div class="text-center py-10 border border-dashed border-slate-700 rounded-xl">
+                <p class="text-sm text-slate-400">All available staff are already assigned to this event.</p>
+            </div>
             {% endif %}
         </div>
     </div>
-</div>
-<div class="mt-8">
-    <a href="{{ url_for('superadmin_dashboard') }}" class="text-blue-400 hover:text-blue-300 hover:underline">&larr;
-        Back to Super Admin Dashboard</a>
 </div>
 {% endblock %}

@@ -1,30 +1,136 @@
 {% extends "layout.html" %}
 
-{% block title %}Login - QMS{% endblock %}
+{% block title %}Sign In - EventPass Enterprise QMS{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-    {% include 'components/robot.html' %}
-    <div class="card p-8 md:p-10">
-        <h2 class="text-3xl font-semibold mb-8 text-center text-gray-100">System Login</h2>
-        <form action="{{ url_for('login') }}" method="POST">
-            <div class="mb-5">
-                <label for="login-username" class="block text-sm font-medium text-gray-300 mb-2">Username</label>
-                <input type="text" id="login-username" name="username" class="w-full px-4 py-3 form-input" required>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center py-4 lg:py-8">
+    <!-- Left Column: Enterprise Capability Showcase (USP Highlights) -->
+    <div class="lg:col-span-7 flex flex-col gap-6">
+        <div>
+            <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20 mb-3">
+                <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                ENTERPRISE GATE SECURITY & ACCESS CONTROL
             </div>
-            <div class="mb-8">
-                <label for="login-password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
-                <input type="password" id="login-password" name="password" class="w-full px-4 py-3 form-input" required>
+            <h1 class="text-3xl md:text-5xl font-extrabold text-white tracking-tight leading-tight">
+                Live Camera Check-in & Instant Digital QR Passes
+            </h1>
+            <p class="text-slate-400 text-base md:text-lg mt-3 leading-relaxed max-w-xl">
+                Replace paper lists and slow check-in queues with verifiable digital ticket passes, instant web-camera verification, and real-time duplicate pass prevention.
+            </p>
+        </div>
+
+        <!-- Digital Pass Showcase Card -->
+        <div class="card p-6 bg-slate-900/80 border-slate-700/60 shadow-2xl relative overflow-hidden max-w-lg">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-800">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                        <i data-lucide="ticket" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-white block">Annual Tech Symposium 2026</span>
+                        <span class="text-[10px] text-slate-400">Main Auditorium • Gate A</span>
+                    </div>
+                </div>
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-mono">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> CHECKED IN
+                </span>
             </div>
-            <button type="submit" class="w-full btn btn-primary py-3">
-                Login
-            </button>
-        </form>
-        <p class="text-center text-sm text-gray-400 mt-8">
-            Need a staff account?
-            <a href="{{ url_for('register') }}"
-                class="font-medium text-blue-400 hover:text-blue-300 hover:underline">Register here</a>
-        </p>
+
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <span class="text-[10px] font-mono text-slate-500 uppercase tracking-wider block">Attendee</span>
+                    <span class="text-lg font-bold text-white block">Alex M. Rivera</span>
+                    <span class="text-xs text-slate-400 font-mono">PASS-E1-9F82-K821</span>
+                    <div class="mt-2 text-[11px] text-emerald-400 font-mono">
+                        Gate verified at 10:45:12 AM
+                    </div>
+                </div>
+                <div class="w-20 h-20 bg-white p-1.5 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md">
+                    <!-- Crisp demo QR visual -->
+                    <svg viewBox="0 0 24 24" class="w-full h-full text-slate-950" fill="currentColor">
+                        <path d="M2 2h8v8H2V2zm2 2v4h4V4H4zm10-2h8v8h-8V2zm2 2v4h4V4h-4zM2 14h8v8H2v-8zm2 2v4h4v-4H4zm14 0h4v2h-4v-2zm-4 0h2v2h-2v-2zm4 4h4v2h-4v-2zm-4 2h2v2h-2v-2zm2-4h2v2h-2v-2zM5 5h2v2H5V5zm12 0h2v2h-2V5zM5 17h2v2H5v-2z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Pills -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg">
+            <div class="p-3 rounded-xl bg-slate-900/50 border border-slate-800 flex items-center gap-2.5">
+                <i data-lucide="qr-code" class="w-4 h-4 text-blue-400 flex-shrink-0"></i>
+                <span class="text-xs font-semibold text-slate-300">Instant QR Passes</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-900/50 border border-slate-800 flex items-center gap-2.5">
+                <i data-lucide="camera" class="w-4 h-4 text-emerald-400 flex-shrink-0"></i>
+                <span class="text-xs font-semibold text-slate-300">Webcam Scanner</span>
+            </div>
+            <div class="p-3 rounded-xl bg-slate-900/50 border border-slate-800 flex items-center gap-2.5">
+                <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400 flex-shrink-0"></i>
+                <span class="text-xs font-semibold text-slate-300">Duplicate Blocking</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Sign In Form -->
+    <div class="lg:col-span-5">
+        <div class="card p-8 md:p-10 border-slate-700/80 shadow-2xl relative">
+            <div class="text-center mb-6">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white mx-auto mb-3 shadow-lg shadow-blue-500/25">
+                    <i data-lucide="lock" class="w-6 h-6"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white tracking-tight">Portal Sign In</h2>
+                <p class="text-xs text-slate-400 mt-1">Authorized gate staff & superadmin access</p>
+            </div>
+
+            <!-- Quick Demo Login Button -->
+            <div class="mb-6 p-3 rounded-xl bg-blue-950/30 border border-blue-500/20 text-xs">
+                <div class="flex items-center justify-between">
+                    <span class="text-slate-300 font-medium">Demo Administrator:</span>
+                    <button type="button" onclick="fillDemoAdmin()" class="font-bold text-blue-400 hover:text-blue-300 hover:underline">
+                        Auto-Fill Credentials
+                    </button>
+                </div>
+                <div class="text-slate-400 font-mono mt-1 text-[11px]">
+                    User: <span class="text-white">admin</span> | Pass: <span class="text-white">admin</span>
+                </div>
+            </div>
+
+            <form action="{{ url_for('login') }}" method="POST" id="login-form">
+                <div class="mb-4">
+                    <label for="login-username" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Username</label>
+                    <div class="relative">
+                        <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+                        <input type="text" id="login-username" name="username" class="w-full pl-10 pr-4 py-2.5 form-input" placeholder="admin" required>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <label for="login-password" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Password</label>
+                    </div>
+                    <div class="relative">
+                        <i data-lucide="key" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+                        <input type="password" id="login-password" name="password" class="w-full pl-10 pr-4 py-2.5 form-input" placeholder="••••••••" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full btn btn-primary py-3 text-sm font-bold shadow-lg shadow-blue-500/25">
+                    Sign In to Console
+                </button>
+            </form>
+
+            <div class="mt-6 pt-5 border-t border-slate-800 text-center text-xs text-slate-400">
+                Staff registration request? 
+                <a href="{{ url_for('register') }}" class="font-bold text-blue-400 hover:text-blue-300 hover:underline ml-1">Create Account</a>
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+function fillDemoAdmin() {
+    document.getElementById('login-username').value = 'admin';
+    document.getElementById('login-password').value = 'admin';
+}
+</script>
 {% endblock %}

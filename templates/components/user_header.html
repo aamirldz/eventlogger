@@ -1,31 +1,37 @@
-{#
-User Header Component - Shows profile pic/avatar with navigation
-Usage: {% include 'components/user_header.html' %}
-Required context: user (dict with username, name, role, profile_pic)
-#}
-<div class="flex items-center gap-4">
-    {# Dashboard Link based on role and current page #}
+<div class="flex items-center gap-3">
     {% if user.role == 'superadmin' %}
         {% if request.path != '/superadmin' %}
         <a href="{{ url_for('superadmin_dashboard') }}"
-            class="text-sm text-blue-300 hover:text-white hover:underline">Dashboard</a>
+            class="text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition-colors flex items-center gap-1.5">
+            <i data-lucide="layout-dashboard" class="w-3.5 h-3.5 text-blue-400"></i> Dashboard
+        </a>
         {% endif %}
     {% else %}
-        <a href="{{ url_for('staff_events') }}" class="text-sm text-blue-300 hover:text-white hover:underline">My Events</a>
+        {% if request.path != '/staff/events' %}
+        <a href="{{ url_for('staff_events') }}" 
+            class="text-xs font-semibold text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 transition-colors flex items-center gap-1.5">
+            <i data-lucide="calendar" class="w-3.5 h-3.5 text-emerald-400"></i> My Gates
+        </a>
+        {% endif %}
     {% endif %}
 
-    {# Profile Picture Avatar #}
-    <a href="{% if user.role == 'superadmin' %}{{ url_for('superadmin_profile') }}{% else %}{{ url_for('staff_profile') }}{% endif %}" title="Edit Profile" class="profile-avatar-link">
-        {% if user.profile_pic %}
-        <img src="{{ url_for('uploaded_file', filename=user.profile_pic) }}"
-            class="w-10 h-10 rounded-full border-2 border-blue-400 shadow-lg hover:opacity-80 transition-opacity object-cover">
-        {% else %}
-        <span class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg border-2 border-white/50 shadow-lg hover:opacity-80 transition-opacity">
-            {{ user.name[0].upper() if user.name else 'A' }}
-        </span>
-        {% endif %}
+    <!-- User Profile Badge -->
+    <a href="{% if user.role == 'superadmin' %}{{ url_for('superadmin_profile') }}{% else %}{{ url_for('staff_profile') }}{% endif %}" title="Profile Settings" 
+        class="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-900/90 border border-slate-800 hover:border-slate-700 transition-colors">
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm flex-shrink-0">
+            {{ user.name[0].upper() if user.name else (user.username[0].upper() if user.username else 'A') }}
+        </div>
+        <div class="text-left hidden sm:block">
+            <span class="text-xs font-bold text-white block leading-tight">{{ user.name if user.name else user.username }}</span>
+            <span class="text-[10px] font-mono text-slate-400 block leading-tight">
+                {% if user.role == 'superadmin' %}Super Admin{% else %}Gate Staff{% endif %}
+            </span>
+        </div>
     </a>
 
-    {# Logout Button #}
-    <a href="{{ url_for('logout') }}" class="btn btn-danger text-sm">Logout</a>
+    <!-- Logout -->
+    <a href="{{ url_for('logout') }}" class="btn btn-outline text-xs py-1.5 px-3 h-8 text-slate-400 hover:text-red-400 hover:border-red-500/30" title="Sign Out">
+        <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+        <span class="hidden sm:inline">Logout</span>
+    </a>
 </div>

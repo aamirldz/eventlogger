@@ -58,7 +58,7 @@ import superadminDashboardHtml from '../templates/superadmin/dashboard.html';
 import superadminEditFormHtml from '../templates/superadmin/edit_form.html';
 import superadminManageStaffHtml from '../templates/superadmin/manage_staff.html';
 import superadminProfileHtml from '../templates/superadmin/profile.html';
-import robotHtml from '../templates/components/robot.html';
+import scannerHtml from '../templates/scanner.html';
 import userHeaderHtml from '../templates/components/user_header.html';
 
 const TEMPLATES = {
@@ -68,6 +68,7 @@ const TEMPLATES = {
     'pending': pendingHtml,
     'attend': attendHtml,
     'attend_success': attendSuccessHtml,
+    'scanner': scannerHtml,
     'staff/events': staffEventsHtml,
     'staff/logs': staffLogsHtml,
     'staff/profile': staffProfileHtml,
@@ -75,7 +76,6 @@ const TEMPLATES = {
     'superadmin/edit_form': superadminEditFormHtml,
     'superadmin/manage_staff': superadminManageStaffHtml,
     'superadmin/profile': superadminProfileHtml,
-    'components/robot': robotHtml,
     'components/user_header': userHeaderHtml,
 };
 
@@ -108,6 +108,8 @@ function resolveUrl(route, params = {}) {
         'superadmin_approve_staff': `/superadmin/approve/${val}`,
         'superadmin_delete_staff': `/superadmin/delete/${val}`,
         'view_logs': `/staff/event/${val}/logs`,
+        'live_scanner': `/scanner/${val}`,
+        'ticket_pass': `/pass/${val}`,
         'qr_code_route': `/qr_code/${val}`,
         'superadmin_delete_field': `/superadmin/field/delete/${val}`,
         'uploaded_file': `/uploads/${val}`,
@@ -632,10 +634,10 @@ async function getUser(db, username) {
 }
 
 // ============================
-// CSS STYLES
+// ENTERPRISE SAAS CSS STYLES
 // ============================
 
-const styleCss = `:root{--cyber-green:#00ff9c;--cyber-green-dark:#00b894;--cyber-glow:rgba(0,255,156,0.2);--cyber-glow-heavy:rgba(0,255,156,0.5);--tech-blue:rgba(173,216,230,0.2)}*{-webkit-tap-highlight-color:transparent;box-sizing:border-box}html{height:100%;scroll-behavior:smooth}body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;color:#e0e0e0;background-color:#090a0f;background-image:radial-gradient(ellipse at bottom,#1b2735 0%,#090a0f 100%);min-height:100%;overflow-x:hidden;position:relative;-webkit-font-smoothing:antialiased}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}#stars-container{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;overflow:hidden;will-change:transform}#stars1,#stars2,#stars3{will-change:transform}#stars1{width:1px;height:1px;background:transparent;box-shadow:714px 1729px #fff,1920px 796px #fff,908px 117px #fff,1695px 1198px #fff,608px 879px #fff,1604px 1728px #fff,1172px 147px #fff,1450px 731px #fff,1461px 1827px #fff,1318px 1269px #fff;animation:stars 50s linear infinite}#stars2{width:2px;height:2px;background:transparent;box-shadow:1828px 1563px #fff,1078px 1284px #fff,100px 1413px #fff,735px 722px #fff,1133px 801px #fff,144px 1311px #fff,1435px 326px #fff,1404px 555px #fff,1530px 1538px #fff,1515px 1275px #fff;animation:stars 100s linear infinite}#stars3{width:3px;height:3px;background:transparent;box-shadow:1530px 583px #fff,1824px 1313px #fff,20px 321px #fff,1020px 1868px #fff,1148px 1633px #fff,1244px 383px #fff,574px 1068px #fff,1111px 112px #fff,1599px 1008px #fff,1472px 1620px #fff;animation:stars 150s linear infinite}@keyframes stars{from{transform:translateY(0)}to{transform:translateY(-2000px)}}.hex-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;background-image:linear-gradient(rgba(0,255,156,.05) 1px,transparent 1px),linear-gradient(60deg,rgba(0,255,156,.05) 1px,transparent 1px),linear-gradient(120deg,rgba(0,255,156,.05) 1px,transparent 1px);background-size:36px 62px;opacity:.5;animation:panGrid 15s linear infinite;pointer-events:none}@media(max-width:768px){.hex-overlay{opacity:.3;animation:none}}@keyframes panGrid{0%{background-position:0 0}100%{background-position:0 62px}}.card{background-color:rgba(30,30,50,.5);border:1px solid var(--tech-blue);border-radius:1rem;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 8px 32px 0 rgba(0,0,0,.37);transition:all .3s ease}@media(hover:hover){.card:hover{transform:translateY(-5px);border-color:var(--cyber-green);box-shadow:0 12px 40px 0 rgba(0,0,0,.5),0 0 20px 0 var(--cyber-glow)}}.form-input{background-color:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:.5rem;transition:all .3s ease;font-size:16px}.form-input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.4);background-color:rgba(0,0,0,.5)}.form-input::placeholder{color:#777}.btn{position:relative;overflow:hidden;padding:.75rem 1.5rem;border-radius:.5rem;font-weight:600;color:#fff;text-align:center;transition:all .2s ease;box-shadow:0 4px 15px rgba(0,0,0,.2);border:none;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none}@media(hover:hover){.btn:hover{transform:scale(1.05);box-shadow:0 6px 20px rgba(0,0,0,.3)}}.btn:active{transform:scale(.98);opacity:.9}.btn-primary{background-image:linear-gradient(to right,#00c6ff,#0072ff)}.btn-cyber-green{background-image:linear-gradient(to right,var(--cyber-green),var(--cyber-green-dark));color:#0a0a0f}.btn-green{background-image:linear-gradient(to right,#10b981,#059669)}.btn-danger{background-image:linear-gradient(to right,#ef4444,#dc2626)}.btn-warning{background-image:linear-gradient(to right,#f59e0b,#d97706)}.btn-purple{background-image:linear-gradient(to right,#8b5cf6,#6d28d9)}.btn-ghost{background-color:transparent;border:1px solid rgba(255,255,255,.3);color:#e0e0e0}.btn-ghost:hover{background-color:rgba(255,255,255,.1)}@media(max-width:640px){.btn{padding:.6rem 1rem;font-size:.875rem}}@keyframes highlightRow{0%{background-color:rgba(0,255,156,.3)}100%{background-color:transparent}}.log-row-new{animation:highlightRow 2.5s ease-out}.dark-table{width:100%;overflow-x:auto;display:block}.dark-table thead{background-color:rgba(0,0,0,.3)}.dark-table th{color:#a0a0a0;white-space:nowrap}.dark-table tbody{border-color:rgba(255,255,255,.2)}.dark-table tr{border-color:rgba(255,255,255,.2);transition:background-color .2s}.dark-table tr:hover{background-color:rgba(255,255,255,.05)}.dark-table td{color:#d0d0d0}.dark-table .data-cell{color:#fff;font-weight:500}.log-row.hidden{display:none}.robot-container{display:flex;justify-content:center;align-items:center;filter:drop-shadow(0 0 15px rgba(0,255,156,.3))}.robot-head,.robot-body{will-change:transform;animation:bob 4s ease-in-out infinite}.robot-body{animation-delay:-.1s}.robot-core{animation:pulse-core 2s ease-in-out infinite alternate}.robot-hand-left{animation:float-hand 3s ease-in-out infinite alternate}.robot-hand-right{animation:float-hand 3.2s ease-in-out infinite alternate}@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}@keyframes pulse-core{from{fill:var(--cyber-green);filter:drop-shadow(0 0 5px var(--cyber-green))}to{fill:#fff;filter:drop-shadow(0 0 15px #fff)}}@keyframes float-hand{from{transform:translateY(-5px) rotate(-5deg)}to{transform:translateY(5px) rotate(5deg)}}.robot-shoulder-ring{animation:float-hand 3.5s ease-in-out infinite alternate}.robot-hand-glow{animation:float-hand 3s ease-in-out infinite alternate;filter:drop-shadow(0 0 5px var(--cyber-green))}.robot-visor-scan{animation:scan-light 4s ease-in-out infinite}.robot-core-glow{animation:pulse-core 2s ease-in-out infinite alternate}.robot-antenna-tip{animation:pulse-core 1.5s ease-in-out infinite alternate}.robot-logo-text{font-family:monospace;font-weight:700;font-size:16px;fill:#fff;letter-spacing:.1em}.robot-logo-glow{filter:drop-shadow(0 0 6px var(--cyber-green))}@keyframes scan-light{0%,100%{transform:translateX(-60px);opacity:.3}50%{transform:translateX(60px);opacity:1}}.bg-cyber-green{background-color:var(--cyber-green)}.shadow-cyber-green{box-shadow:0 0 8px 2px var(--cyber-glow-heavy)}.profile-avatar-link{transition:transform .2s ease,box-shadow .2s ease;display:inline-block}@media(hover:hover){.profile-avatar-link:hover{transform:scale(1.1);box-shadow:0 0 12px rgba(59,130,246,.5)}}.badge-super{background-color:#f59e0b;color:#78350f;font-size:.65rem;font-weight:700;padding:.125rem .5rem;border-radius:9999px;margin-right:.5rem}@media(max-width:640px){h1{font-size:1.75rem!important}h2{font-size:1.5rem!important}h3{font-size:1.25rem!important}.card{border-radius:.75rem}}@keyframes spin{to{transform:rotate(360deg)}}.animate-spin{animation:spin 1s linear infinite}`;
+const styleCss = `:root{--bg-dark:#090d16;--bg-card:rgba(15,23,42,0.75);--border-card:rgba(255,255,255,0.08);--primary:#3b82f6;--primary-hover:#2563eb;--emerald:#10b981;--emerald-hover:#059669;--danger:#ef4444;--amber:#f59e0b}*{-webkit-tap-highlight-color:transparent;box-sizing:border-box}html,body{height:100%}body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#e2e8f0;background-color:#090d16;background-image:radial-gradient(at 0% 0%,rgba(37,99,235,0.1) 0px,transparent 50%),radial-gradient(at 100% 100%,rgba(99,102,241,0.08) 0px,transparent 50%),radial-gradient(at 50% 50%,rgba(15,23,42,0.4) 0px,transparent 100%);background-attachment:fixed;min-height:100%;margin:0;-webkit-font-smoothing:antialiased}.card{background-color:var(--bg-card);border:1px solid var(--border-card);border-radius:1rem;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 10px 30px -5px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.05);transition:border-color .2s ease,box-shadow .2s ease}.card:hover{border-color:rgba(59,130,246,0.4);box-shadow:0 14px 35px -5px rgba(0,0,0,0.6),0 0 15px -3px rgba(59,130,246,0.15)}.form-input{background-color:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.12);color:#f8fafc;border-radius:.625rem;transition:all .2s ease;font-size:15px}.form-input:focus{outline:none;border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,0.25);background-color:rgba(15,23,42,0.9)}.form-input::placeholder{color:#64748b}.btn{position:relative;padding:.625rem 1.25rem;border-radius:.625rem;font-weight:600;font-size:.875rem;color:#fff;text-align:center;transition:all .2s ease;border:none;cursor:pointer;min-height:42px;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;text-decoration:none}.btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}.btn:active{transform:translateY(0)}.btn-primary{background:linear-gradient(135deg,#3b82f6 0%,#2563eb 100%);box-shadow:0 2px 10px rgba(37,99,235,0.3)}.btn-primary:hover{background:linear-gradient(135deg,#60a5fa 0%,#3b82f6 100%);box-shadow:0 4px 16px rgba(37,99,235,0.45)}.btn-emerald{background:linear-gradient(135deg,#10b981 0%,#059669 100%);box-shadow:0 2px 10px rgba(16,185,129,0.3);color:#fff}.btn-emerald:hover{background:linear-gradient(135deg,#34d399 0%,#10b981 100%);box-shadow:0 4px 16px rgba(16,185,129,0.45)}.btn-danger{background:linear-gradient(135deg,#ef4444 0%,#dc2626 100%)}.btn-warning{background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%)}.btn-purple{background:linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%)}.btn-outline{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.15);color:#e2e8f0}.btn-outline:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.25)}.ticket-container{background:linear-gradient(145deg,#131b2e 0%,#0f172a 100%);border:1px solid rgba(255,255,255,0.12);border-radius:1.25rem;position:relative;box-shadow:0 20px 40px -10px rgba(0,0,0,0.7);overflow:hidden}.ticket-notch-left,.ticket-notch-right{position:absolute;width:24px;height:24px;background:#090d16;border-radius:50%;z-index:20;top:45%}.ticket-notch-left{left:-12px}.ticket-notch-right{right:-12px}.ticket-perforation{border-bottom:2px dashed rgba(255,255,255,0.15)}@keyframes scanLaser{0%{top:5%;opacity:.8}50%{top:90%;opacity:1}100%{top:5%;opacity:.8}}.scanner-laser{position:absolute;left:5%;width:90%;height:3px;background:linear-gradient(90deg,transparent,#3b82f6,#60a5fa,#3b82f6,transparent);box-shadow:0 0 12px #3b82f6,0 0 4px #60a5fa;animation:scanLaser 2.2s ease-in-out infinite;pointer-events:none;z-index:10}.badge-checked{background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3)}.badge-pending{background:rgba(100,116,139,0.15);color:#94a3b8;border:1px solid rgba(100,116,139,0.25)}.badge-alert{background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.3)}@media print{body{background:#fff!important;color:#000!important}header,#spa-progress-bar,.no-print{display:none!important}.ticket-container{box-shadow:none!important;border:2px solid #000!important;background:#fff!important;color:#000!important}}`;
 
 // ============================
 // ROUTES
@@ -652,15 +654,15 @@ app.get('/static/css/style.css', (c) => {
 });
 
 // Login
-app.get('/', async (c) => {
+const handleLoginGet = async (c) => {
     const session = getSession(c);
     if (session.username) {
         return c.redirect(session.role === 'superadmin' ? '/superadmin' : '/staff/events');
     }
     return c.html(render('login', { user: null, flash_messages: [], request: { path: '/' } }));
-});
+};
 
-app.post('/', async (c) => {
+const handleLoginPost = async (c) => {
     const body = await c.req.parseBody();
     const db = getDb(c);
     const user = await getUser(db, body.username);
@@ -673,7 +675,12 @@ app.post('/', async (c) => {
         return c.redirect(user.role === 'superadmin' ? '/superadmin' : '/staff/events');
     }
     return c.html(render('login', { user: null, flash_messages: [{ category: 'error', message: 'Invalid credentials.' }], request: { path: '/' } }));
-});
+};
+
+app.get('/', handleLoginGet);
+app.get('/login', handleLoginGet);
+app.post('/', handleLoginPost);
+app.post('/login', handleLoginPost);
 
 // Register
 app.get('/register', (c) => c.html(render('register', { user: null, flash_messages: [], request: { path: '/register' } })));
@@ -716,10 +723,20 @@ app.get('/superadmin', async (c) => {
                     (SELECT json_agg(u) FROM (SELECT * FROM users WHERE role != 'superadmin' AND approved = 0) u) as pending_staff,
                     (SELECT json_agg(u) FROM (SELECT * FROM users WHERE role != 'superadmin' AND approved = 1) u) as approved_staff,
                     (SELECT json_agg(e) FROM (
-                        SELECT e.*, COALESCE(ea.cnt, 0) as staff_count 
+                        SELECT e.*, 
+                            COALESCE(ea.cnt, 0) as staff_count,
+                            COALESCE(lc.total_regs, 0) as registered_count,
+                            COALESCE(lc.checked_cnt, 0) as checked_in_count
                         FROM events e 
                         LEFT JOIN (SELECT event_id, COUNT(*) as cnt FROM event_admins GROUP BY event_id) ea 
-                        ON e.event_id = ea.event_id
+                            ON e.event_id = ea.event_id
+                        LEFT JOIN (
+                            SELECT event_id, 
+                                COUNT(*) as total_regs, 
+                                COUNT(CASE WHEN status = 'checked_in' THEN 1 END) as checked_cnt 
+                            FROM logs GROUP BY event_id
+                        ) lc ON e.event_id = lc.event_id
+                        ORDER BY e.event_id DESC
                     ) e) as all_events;
             `;
             const r = rows && rows[0] ? rows[0] : {};
@@ -755,11 +772,21 @@ app.get('/superadmin', async (c) => {
         initial: s.name ? s.name.charAt(0).toUpperCase() : 'S'
     }));
 
+    // Calculate executive KPIs
+    const totalEvents = data.all_events.length;
+    const totalRegistrations = data.all_events.reduce((sum, e) => sum + parseInt(e.registered_count || 0, 10), 0);
+    const totalCheckedIn = data.all_events.reduce((sum, e) => sum + parseInt(e.checked_in_count || 0, 10), 0);
+    const activeStaffCount = approved_staff.length;
+
     return c.html(render('superadmin/dashboard', {
         user,
         pending_staff,
         approved_staff,
         all_events: data.all_events,
+        totalEvents,
+        totalRegistrations,
+        totalCheckedIn,
+        activeStaffCount,
         flash_messages: [],
         request: { path: '/superadmin' }
     }));
@@ -771,7 +798,23 @@ app.post('/superadmin/event/create', async (c) => {
     if (session.role !== 'superadmin') return c.redirect('/');
     const body = await c.req.parseBody();
     const db = getDb(c);
-    await db.prepare("INSERT INTO events (event_name) VALUES (?)").bind(body.event_name).run();
+    const capacity = parseInt(body.capacity || '100', 10);
+    const eventDate = body.event_date || '';
+    const venue = body.venue || '';
+    const description = body.description || '';
+
+    const newEvent = await db.prepare("INSERT INTO events (event_name, capacity, event_date, venue, description) VALUES (?, ?, ?, ?, ?) RETURNING event_id")
+        .bind(body.event_name, capacity, eventDate, venue, description).first();
+
+    const newId = newEvent?.event_id;
+    if (newId) {
+        // Auto-seed standard attendee registration fields so the event is immediately ready to use!
+        await db.prepare("INSERT INTO event_fields (event_id, field_label, field_type, is_required, field_order) VALUES (?, 'Full Name', 'text', 1, 1)").bind(newId).run();
+        await db.prepare("INSERT INTO event_fields (event_id, field_label, field_type, is_required, field_order) VALUES (?, 'Email Address', 'email', 1, 2)").bind(newId).run();
+        await db.prepare("INSERT INTO event_fields (event_id, field_label, field_type, is_required, field_order) VALUES (?, 'Student ID / Roll No', 'text', 1, 3)").bind(newId).run();
+        await db.prepare("INSERT INTO event_fields (event_id, field_label, field_type, is_required, field_order) VALUES (?, 'Phone Number', 'tel', 0, 4)").bind(newId).run();
+    }
+
     invalidateAllCaches();
     return c.redirect('/superadmin');
 });
@@ -1125,43 +1168,328 @@ app.post('/staff/log/delete/:log_id/:event_id', async (c) => {
     if (!session.username) return c.redirect('/');
     const db = getDb(c);
     await db.prepare("DELETE FROM logs WHERE log_id = ?").bind(c.req.param('log_id')).run();
+    invalidateAllCaches();
     return c.redirect(`/staff/event/${c.req.param('event_id')}/logs`);
 });
 
-// Public - Attend Event
+// ============================
+// LIVE CAMERA SCANNER & GATE CHECK-IN USP
+// ============================
+
+// Live Web-Camera Gate Scanner Page
+app.get('/scanner/:event_id', async (c) => {
+    const session = getSession(c);
+    if (!session.username) return c.redirect('/');
+    const eventId = parseInt(c.req.param('event_id'), 10);
+    const db = getDb(c);
+    const user = await getUser(db, session.username);
+
+    // Permission check: superadmin or assigned staff
+    if (session.role !== 'superadmin') {
+        const access = await db.prepare("SELECT 1 FROM event_admins WHERE event_id = ? AND admin_username = ?").bind(eventId, session.username).first();
+        if (!access) return c.redirect('/staff/events');
+    }
+
+    const sql = getSql(c);
+    let event, totalCount = 0, checkedInCount = 0, recentScans = [];
+    if (sql) {
+        const rows = await sql`
+            SELECT 
+                (SELECT row_to_json(e) FROM events e WHERE e.event_id = ${eventId}) as event,
+                (SELECT COUNT(*) FROM logs WHERE event_id = ${eventId}) as total_count,
+                (SELECT COUNT(*) FROM logs WHERE event_id = ${eventId} AND status = 'checked_in') as checked_count,
+                (SELECT json_agg(s) FROM (
+                    SELECT log_id, ticket_token, data, status, checked_in_at, checked_in_by 
+                    FROM logs 
+                    WHERE event_id = ${eventId} AND status = 'checked_in' 
+                    ORDER BY log_id DESC LIMIT 10
+                ) s) as recent_scans;
+        `;
+        const r = rows && rows[0] ? rows[0] : {};
+        event = r.event;
+        totalCount = parseInt(r.total_count || '0', 10);
+        checkedInCount = parseInt(r.checked_count || '0', 10);
+        recentScans = (r.recent_scans || []).map(s => {
+            let d = {};
+            try { d = typeof s.data === 'object' ? s.data : JSON.parse(s.data); } catch { d = {}; }
+            return {
+                ...s,
+                attendee_name: d['Full Name'] || d['Name'] || d['Student Name'] || Object.values(d)[0] || `Attendee #${s.log_id}`
+            };
+        });
+    } else {
+        const [eventRes, totalRes, checkedRes, recentRes] = await Promise.all([
+            db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first(),
+            db.prepare("SELECT COUNT(*) as cnt FROM logs WHERE event_id = ?").bind(eventId).first(),
+            db.prepare("SELECT COUNT(*) as cnt FROM logs WHERE event_id = ? AND status = 'checked_in'").bind(eventId).first(),
+            db.prepare("SELECT * FROM logs WHERE event_id = ? AND status = 'checked_in' ORDER BY log_id DESC LIMIT 10").bind(eventId).all()
+        ]);
+        event = eventRes;
+        totalCount = parseInt(totalRes?.cnt || '0', 10);
+        checkedInCount = parseInt(checkedRes?.cnt || '0', 10);
+        recentScans = (recentRes.results || []).map(s => {
+            let d = {};
+            try { d = JSON.parse(s.data); } catch { d = {}; }
+            return {
+                ...s,
+                attendee_name: d['Full Name'] || d['Name'] || d['Student Name'] || Object.values(d)[0] || `Attendee #${s.log_id}`
+            };
+        });
+    }
+
+    if (!event) return c.redirect(session.role === 'superadmin' ? '/superadmin' : '/staff/events');
+
+    const capacity = event.capacity || 100;
+    const capacityPct = Math.min(100, Math.round((checkedInCount / capacity) * 100));
+
+    return c.html(render('scanner', {
+        user,
+        event,
+        totalCount,
+        checkedInCount,
+        capacity,
+        capacityPct,
+        recentScans,
+        flash_messages: [],
+        request: { path: `/scanner/${eventId}` }
+    }));
+});
+
+// API - Live Web-Camera & Manual Scan Validator (Duplicate Prevention)
+app.post('/api/scan', async (c) => {
+    const session = getSession(c);
+    if (!session.username) return c.json({ success: false, error: 'Unauthorized' }, 401);
+    
+    let body;
+    try {
+        body = await c.req.json();
+    } catch {
+        body = await c.req.parseBody();
+    }
+
+    const eventId = parseInt(body.event_id, 10);
+    const token = (body.token || body.ticket_token || '').trim();
+
+    if (!eventId || !token) {
+        return c.json({ success: false, error: 'Missing event ID or ticket token' }, 400);
+    }
+
+    const db = getDb(c);
+    const sql = getSql(c);
+
+    // Look up attendee by ticket_token OR log_id
+    let log;
+    if (sql) {
+        const rows = await sql`
+            SELECT * FROM logs 
+            WHERE event_id = ${eventId} AND (ticket_token = ${token} OR log_id::text = ${token})
+            LIMIT 1;
+        `;
+        log = rows && rows[0] ? rows[0] : null;
+    } else {
+        log = await db.prepare("SELECT * FROM logs WHERE event_id = ? AND (ticket_token = ? OR log_id = ?)").bind(eventId, token, parseInt(token, 10) || 0).first();
+    }
+
+    if (!log) {
+        return c.json({
+            success: false,
+            status: 'not_found',
+            message: `INVALID PASS • No ticket registered with code "${token}".`
+        });
+    }
+
+    let attendeeData = {};
+    try {
+        attendeeData = typeof log.data === 'object' ? log.data : JSON.parse(log.data);
+    } catch {
+        attendeeData = {};
+    }
+
+    const attendeeName = attendeeData['Full Name'] || attendeeData['Name'] || attendeeData['Student Name'] || Object.values(attendeeData)[0] || `Attendee #${log.log_id}`;
+
+    // DUPLICATE PASS CHECK:
+    if (log.status === 'checked_in') {
+        return c.json({
+            success: false,
+            status: 'already_checked_in',
+            message: 'DUPLICATE PASS DETECTED',
+            details: `This pass was already checked in at ${log.checked_in_at || 'earlier'} by ${log.checked_in_by || 'gate staff'}.`,
+            attendee_name: attendeeName,
+            ticket_token: log.ticket_token || `PASS-${log.log_id}`,
+            checked_in_at: log.checked_in_at
+        });
+    }
+
+    // FIRST-TIME VALID CHECK-IN:
+    const formattedTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    if (sql) {
+        await sql`
+            UPDATE logs 
+            SET status = 'checked_in', checked_in_at = ${formattedTime}, checked_in_by = ${session.username} 
+            WHERE log_id = ${log.log_id};
+        `;
+    } else {
+        await db.prepare("UPDATE logs SET status = 'checked_in', checked_in_at = ?, checked_in_by = ? WHERE log_id = ?")
+            .bind(formattedTime, session.username, log.log_id).run();
+    }
+
+    invalidateAllCaches();
+
+    // Fetch updated totals for live counter
+    let totalCount = 0, checkedInCount = 0;
+    if (sql) {
+        const counts = await sql`
+            SELECT 
+                (SELECT COUNT(*) FROM logs WHERE event_id = ${eventId}) as total,
+                (SELECT COUNT(*) FROM logs WHERE event_id = ${eventId} AND status = 'checked_in') as checked;
+        `;
+        totalCount = parseInt(counts[0]?.total || '0', 10);
+        checkedInCount = parseInt(counts[0]?.checked || '0', 10);
+    }
+
+    return c.json({
+        success: true,
+        status: 'checked_in',
+        message: 'ACCESS GRANTED • CHECKED IN',
+        attendee_name: attendeeName,
+        ticket_token: log.ticket_token || `PASS-${log.log_id}`,
+        checked_in_at: formattedTime,
+        data: attendeeData,
+        total_count: totalCount,
+        checked_in_count: checkedInCount
+    });
+});
+
+// API - Manual Check-in Toggle
+app.post('/api/checkin/toggle/:log_id', async (c) => {
+    const session = getSession(c);
+    if (!session.username) return c.json({ error: 'Unauthorized' }, 401);
+    const logId = parseInt(c.req.param('log_id'), 10);
+    const db = getDb(c);
+    const log = await db.prepare("SELECT * FROM logs WHERE log_id = ?").bind(logId).first();
+    if (!log) return c.json({ error: 'Not found' }, 404);
+
+    const newStatus = log.status === 'checked_in' ? 'registered' : 'checked_in';
+    const checkinTime = newStatus === 'checked_in' ? new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
+    const checkinBy = newStatus === 'checked_in' ? session.username : null;
+
+    await db.prepare("UPDATE logs SET status = ?, checked_in_at = ?, checked_in_by = ? WHERE log_id = ?")
+        .bind(newStatus, checkinTime, checkinBy, logId).run();
+
+    invalidateAllCaches();
+    return c.json({ success: true, status: newStatus, checked_in_at: checkinTime });
+});
+
+// ============================
+// DIGITAL PASS & ATTENDANCE
+// ============================
+
+// Public - View Digital Event Pass
+app.get('/pass/:ticket_token', async (c) => {
+    const token = c.req.param('ticket_token');
+    const db = getDb(c);
+    const sql = getSql(c);
+
+    let log, event;
+    if (sql) {
+        const rows = await sql`
+            SELECT l.*, row_to_json(e) as event 
+            FROM logs l 
+            JOIN events e ON l.event_id = e.event_id 
+            WHERE l.ticket_token = ${token} OR l.log_id::text = ${token}
+            LIMIT 1;
+        `;
+        if (rows && rows[0]) {
+            log = rows[0];
+            event = rows[0].event;
+        }
+    } else {
+        log = await db.prepare("SELECT * FROM logs WHERE ticket_token = ? OR log_id = ?").bind(token, parseInt(token, 10) || 0).first();
+        if (log) {
+            event = await db.prepare("SELECT * FROM events WHERE event_id = ?").bind(log.event_id).first();
+        }
+    }
+
+    if (!log || !event) return c.text('Digital Ticket Pass Not Found', 404);
+
+    let data = {};
+    try { data = typeof log.data === 'object' ? log.data : JSON.parse(log.data); } catch { data = {}; }
+    const attendeeName = data['Full Name'] || data['Name'] || data['Student Name'] || Object.values(data)[0] || 'Attendee';
+
+    const passToken = log.ticket_token || `PASS-${log.log_id}`;
+    let qrSvg = '';
+    try {
+        qrSvg = await QRCode.toString(passToken, {
+            type: 'svg',
+            margin: 1,
+            color: { dark: '#0b0f19', light: '#ffffff' }
+        });
+    } catch {}
+
+    const formattedTime = new Date(log.timestamp).toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+
+    return c.html(render('attend_success', {
+        event,
+        ticket_token: passToken,
+        attendee_name: attendeeName,
+        data,
+        timestamp: formattedTime,
+        status: log.status || 'registered',
+        checked_in_at: log.checked_in_at || null,
+        qr_svg: qrSvg,
+        request: { path: `/pass/${token}` }
+    }));
+});
+
+// Public - Register / Attend Event Form
 app.get('/attend/:event_id', async (c) => {
     const eventId = parseInt(c.req.param('event_id'), 10);
     const db = getDb(c);
     const sql = getSql(c);
 
-    let event, fields;
+    let event, fields, totalCount = 0;
     if (sql) {
         const rows = await sql`
             SELECT 
                 (SELECT row_to_json(e) FROM events e WHERE e.event_id = ${eventId}) as event,
-                (SELECT json_agg(f) FROM (SELECT * FROM event_fields WHERE event_id = ${eventId} ORDER BY field_order ASC, field_id ASC) f) as fields;
+                (SELECT json_agg(f) FROM (SELECT * FROM event_fields WHERE event_id = ${eventId} ORDER BY field_order ASC, field_id ASC) f) as fields,
+                (SELECT COUNT(*) FROM logs WHERE event_id = ${eventId}) as total_count;
         `;
         const r = rows && rows[0] ? rows[0] : {};
         event = r.event;
         fields = r.fields || [];
+        totalCount = parseInt(r.total_count || '0', 10);
     } else {
-        const [eventRes, fieldsRes] = await Promise.all([
+        const [eventRes, fieldsRes, countRes] = await Promise.all([
             db.prepare("SELECT * FROM events WHERE event_id = ?").bind(eventId).first(),
-            db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all()
+            db.prepare("SELECT * FROM event_fields WHERE event_id = ? ORDER BY field_order ASC, field_id ASC").bind(eventId).all(),
+            db.prepare("SELECT COUNT(*) as cnt FROM logs WHERE event_id = ?").bind(eventId).first()
         ]);
         event = eventRes;
         fields = fieldsRes.results || [];
+        totalCount = parseInt(countRes?.cnt || '0', 10);
     }
 
     if (!event) return c.text('Event not found', 404);
+
+    const capacity = event.capacity || 100;
+    const spotsRemaining = Math.max(0, capacity - totalCount);
+
     return c.html(render('attend', {
         event,
         fields,
+        totalCount,
+        capacity,
+        spotsRemaining,
         flash_messages: [],
         request: { path: `/attend/${eventId}` }
     }));
 });
 
+// Public - Submit Attendance & Generate Instant Digital QR Pass
 app.post('/attend/:event_id', async (c) => {
     const eventId = parseInt(c.req.param('event_id'), 10);
     const db = getDb(c);
@@ -1190,18 +1518,73 @@ app.post('/attend/:event_id', async (c) => {
         data[field.field_label] = body[field.field_label] || '';
     }
 
+    // Default fallback if event has no fields
+    if (fields.length === 0) {
+        data['Full Name'] = body['Full Name'] || body.name || 'Attendee';
+        data['Email'] = body['Email'] || body.email || '';
+    }
+
+    const attendeeName = data['Full Name'] || data['Name'] || data['Student Name'] || Object.values(data)[0] || 'Attendee';
+
+    // Generate unique verifiable pass token
+    const randCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const timeCode = Date.now().toString(36).substring(4).toUpperCase();
+    const ticketToken = `PASS-E${eventId}-${randCode}-${timeCode}`;
+
     const now = new Date();
-    await db.prepare("INSERT INTO logs (event_id, data, timestamp) VALUES (?, ?, ?)").bind(eventId, JSON.stringify(data), now.toISOString()).run();
-    const formattedTime = now.toLocaleString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    await db.prepare("INSERT INTO logs (event_id, data, timestamp, ticket_token, status) VALUES (?, ?, ?, ?, 'registered')")
+        .bind(eventId, JSON.stringify(data), now.toISOString(), ticketToken).run();
+
+    invalidateAllCaches();
+
+    // Generate high-res SVG QR Code of the ticket token
+    let qrSvg = '';
+    try {
+        qrSvg = await QRCode.toString(ticketToken, {
+            type: 'svg',
+            margin: 1,
+            color: { dark: '#0b0f19', light: '#ffffff' }
+        });
+    } catch {}
+
+    const formattedTime = now.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
 
     return c.html(render('attend_success', {
         event,
+        ticket_token: ticketToken,
+        attendee_name: attendeeName,
+        data,
         timestamp: formattedTime,
+        status: 'registered',
+        checked_in_at: null,
+        qr_svg: qrSvg,
         request: { path: `/attend/${eventId}` }
     }));
 });
 
-// QR Code (SVG generated dynamically, zero external network dependency)
+// Dynamic QR Code by token
+app.get('/qr_token/:token', async (c) => {
+    const token = c.req.param('token');
+    try {
+        const svg = await QRCode.toString(token, {
+            type: 'svg',
+            margin: 1,
+            color: { dark: '#0b0f19', light: '#ffffff' }
+        });
+        return new Response(svg, {
+            headers: {
+                'Content-Type': 'image/svg+xml; charset=utf-8',
+                'Cache-Control': 'public, max-age=86400'
+            }
+        });
+    } catch {
+        return c.text('QR generation error', 500);
+    }
+});
+
+// QR Code for Event Registration URL
 app.get('/qr_code/:event_id', async (c) => {
     const eventId = c.req.param('event_id');
     const baseUrl = getBaseUrl(c);
@@ -1211,7 +1594,7 @@ app.get('/qr_code/:event_id', async (c) => {
             type: 'svg',
             margin: 1,
             color: {
-                dark: '#0a0a0f',
+                dark: '#0b0f19',
                 light: '#ffffff'
             }
         });
@@ -1222,7 +1605,6 @@ app.get('/qr_code/:event_id', async (c) => {
             }
         });
     } catch {
-        // Fallback to QR server if library fails
         const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`;
         const response = await fetch(qrApiUrl);
         return new Response(await response.arrayBuffer(), { headers: { 'Content-Type': 'image/png' } });
@@ -1239,7 +1621,7 @@ app.get('/api/event/:event_id/logs', async (c) => {
 
     const logsRaw = (await db.prepare("SELECT * FROM logs WHERE event_id = ? AND log_id > ? ORDER BY log_id DESC").bind(eventId, sinceId).all()).results || [];
     const logs = logsRaw.map(l => {
-        try { l.data = JSON.parse(l.data); } catch { l.data = {}; }
+        try { l.data = typeof l.data === 'object' ? l.data : JSON.parse(l.data); } catch { l.data = {}; }
         try {
             l.formatted_timestamp = new Date(l.timestamp).toLocaleString('en-US', {
                 month: 'short', day: 'numeric', year: 'numeric',
@@ -1248,12 +1630,14 @@ app.get('/api/event/:event_id/logs', async (c) => {
         } catch {
             l.formatted_timestamp = l.timestamp;
         }
+        l.status = l.status || 'registered';
+        l.ticket_token = l.ticket_token || `PASS-${l.log_id}`;
         return l;
     });
     return c.json({ logs });
 });
 
-// API - Export Event Logs to CSV
+// API - Export Event Logs to CSV (Includes Ticket Pass ID & Check-in Status)
 app.get('/api/event/:event_id/export', async (c) => {
     const session = getSession(c);
     if (!session.username) return c.redirect('/');
@@ -1267,7 +1651,7 @@ app.get('/api/event/:event_id/export', async (c) => {
     const logsRaw = (await db.prepare("SELECT * FROM logs WHERE event_id = ? ORDER BY log_id DESC").bind(eventId).all()).results || [];
 
     const fieldLabels = fields.map(f => f.field_label);
-    const headers = ['Log ID', 'Timestamp', ...fieldLabels];
+    const headers = ['Log ID', 'Ticket Token', 'Gate Status', 'Checked In At', 'Checked In By', 'Registered Timestamp', ...fieldLabels];
 
     const escapeCsv = (str) => {
         if (str === null || str === undefined) return '""';
@@ -1279,9 +1663,13 @@ app.get('/api/event/:event_id/export', async (c) => {
 
     for (const log of logsRaw) {
         let dataObj = {};
-        try { dataObj = JSON.parse(log.data); } catch { dataObj = {}; }
+        try { dataObj = typeof log.data === 'object' ? log.data : JSON.parse(log.data); } catch { dataObj = {}; }
         const row = [
             log.log_id,
+            log.ticket_token || `PASS-${log.log_id}`,
+            log.status || 'registered',
+            log.checked_in_at || 'N/A',
+            log.checked_in_by || 'N/A',
             log.timestamp,
             ...fieldLabels.map(label => dataObj[label] ?? '')
         ];
@@ -1292,7 +1680,7 @@ app.get('/api/event/:event_id/export', async (c) => {
     return new Response(csv, {
         headers: {
             'Content-Type': 'text/csv; charset=utf-8',
-            'Content-Disposition': `attachment; filename="${safeFilename}_attendance.csv"`
+            'Content-Disposition': `attachment; filename="${safeFilename}_gate_report.csv"`
         }
     });
 });

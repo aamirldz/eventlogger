@@ -1,12 +1,21 @@
 {% extends "layout.html" %}
 
-{% block title %}Pending Approval - QMS{% endblock %}
+{% block title %}Account Pending Approval - EventPass QMS{% endblock %}
 
 {% block content %}
-<div class="card p-8 md:p-12 text-center max-w-lg mx-auto">
-    <h2 class="text-3xl font-semibold mb-4 text-yellow-400">Account Pending</h2>
-    <p class="text-gray-200 text-lg">Your admin account is awaiting approval from a Super Admin. Please check back
-        later.</p>
-    <a href="{{ url_for('logout') }}" class="btn btn-ghost mt-8 inline-block">Logout</a>
+<div class="card p-8 md:p-12 text-center max-w-md mx-auto my-8">
+    <div class="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 mx-auto flex items-center justify-center mb-4 text-amber-400">
+        <i data-lucide="clock" class="w-8 h-8"></i>
+    </div>
+    <span class="inline-block px-3 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 uppercase font-mono mb-2">
+        AWAITING APPROVAL
+    </span>
+    <h2 class="text-2xl font-bold text-white mb-2 tracking-tight">Staff Account Pending</h2>
+    <p class="text-slate-400 text-sm leading-relaxed mb-6">
+        Your registration request has been submitted. A Super Administrator will review and grant gate access shortly.
+    </p>
+    <a href="{{ url_for('logout') }}" class="btn btn-outline text-xs py-2 px-4 inline-flex items-center gap-2">
+        <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Sign Out
+    </a>
 </div>
 {% endblock %}

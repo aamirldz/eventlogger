@@ -1,71 +1,80 @@
 {% extends "layout.html" %}
 
-{% block title %}Edit My Profile - QMS{% endblock %}
+{% block title %}My Profile - EventPass Enterprise{% endblock %}
 
 {% block header_button %}
 {% include 'components/user_header.html' %}
 {% endblock %}
 
 {% block content %}
-<h2 class="text-3xl font-semibold mb-8 text-gray-100">Edit My Profile</h2>
-<div class="card p-8 md:p-10 max-w-2xl mx-auto">
-    <form action="{{ url_for('staff_update_profile') }}" method="POST" enctype="multipart/form-data">
-        <div class="mb-6">
-            <label class="block text-sm font-medium text-gray-300 mb-2">Profile Picture</label>
-            <div class="flex items-center gap-5">
-                {% if user['profile_pic'] %}
-                <img src="{{ url_for('uploaded_file', filename=user['profile_pic']) }}"
-                    class="w-24 h-24 rounded-full border-4 border-gray-600 object-cover">
-                {% else %}
-                <span
-                    class="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-4xl border-4 border-gray-600 shadow">{{
-                    user['name'][0].upper() if user['name'] else 'A' }}</span>
-                {% endif %}
-                <input type="file" id="profile_pic" name="profile_pic" class="w-full text-sm text-gray-400
-                    file:mr-4 file:py-2 file:px-4
-                    file:rounded-full file:border-0
-                    file:text-sm file:font-semibold
-                    file:bg-blue-600/20 file:text-blue-300
-                    hover:file:bg-blue-600/40" accept=".png,.jpg,.jpeg,.gif">
-            </div>
+<div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <div class="flex items-center gap-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">
+            <a href="{{ url_for('staff_events') }}" class="hover:underline">Gate Station</a>
+            <span>/</span>
+            <span>Profile Settings</span>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-            <div>
-                <label for="name" class="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
-                <input type="text" id="name" name="name" class="w-full px-4 py-3 form-input" value="{{ user['name'] }}"
-                    required>
-            </div>
-            <div>
-                <label for="phone" class="block text-sm font-medium text-gray-300 mb-2">Phone No.</label>
-                <input type="tel" id="phone" name="phone" class="w-full px-4 py-3 form-input"
-                    value="{{ user['phone'] }}" required>
-            </div>
-        </div>
-        <div class="mb-5">
-            <label for="address" class="block text-sm font-medium text-gray-300 mb-2">Address</label>
-            <input type="text" id="address" name="address" class="w-full px-4 py-3 form-input"
-                value="{{ user['address'] }}" required>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">
-            <div>
-                <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username</label>
-                <input type="text" id="username" name="username" class="w-full px-4 py-3 form-input bg-gray-800/50"
-                    value="{{ user['username'] }}" readonly>
-                <p class="text-xs text-gray-400 mt-1">Username cannot be changed.</p>
-            </div>
-            <div>
-                <label for="password" class="block text-sm font-medium text-gray-300 mb-2">New Password</label>
-                <input type="password" id="password" name="password" class="w-full px-4 py-3 form-input"
-                    placeholder="Leave blank to keep current password">
-            </div>
-        </div>
-        <button type="submit" class="w-full btn btn-cyber-green py-3">
-            Save Changes
-        </button>
-    </form>
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Staff Account Settings</h1>
+        <p class="text-sm text-slate-400 mt-1">Manage your staff operator profile and password</p>
+    </div>
+    <a href="{{ url_for('staff_events') }}" class="btn btn-secondary self-start sm:self-auto inline-flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Back to Assigned Events
+    </a>
 </div>
-<div class="mt-8 text-center">
-    <a href="{{ url_for('staff_events') }}" class="text-blue-400 hover:text-blue-300 hover:underline">&larr; Back to My
-        Events</a>
+
+<div class="max-w-xl mx-auto">
+    <div class="card p-6 sm:p-8">
+        <form action="{{ url_for('staff_update_profile') }}" method="POST">
+            <div class="flex items-center gap-4 pb-6 border-b border-slate-700/60 mb-6">
+                <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 flex items-center justify-center text-white font-extrabold text-2xl shadow-lg shadow-emerald-500/20">
+                    {{ user['name'][0].upper() if user['name'] else 'S' }}
+                </div>
+                <div>
+                    <h2 class="text-lg font-bold text-white">{{ user['name'] or user['username'] }}</h2>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Check-In Staff</span>
+                        <span class="text-xs text-slate-400 font-mono">@{{ user['username'] }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label for="name" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Full Name</label>
+                        <input type="text" id="name" name="name" class="form-input text-sm" value="{{ user['name'] }}" required>
+                    </div>
+                    <div>
+                        <label for="phone" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Phone Number</label>
+                        <input type="tel" id="phone" name="phone" class="form-input text-sm" value="{{ user['phone'] }}" required>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="address" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Department / Organization</label>
+                    <input type="text" id="address" name="address" class="form-input text-sm" value="{{ user['address'] }}" required>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Username (Locked)</label>
+                        <input type="text" class="form-input text-sm bg-slate-900/50 text-slate-400 cursor-not-allowed" value="{{ user['username'] }}" disabled>
+                    </div>
+                    <div>
+                        <label for="password" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">New Password</label>
+                        <input type="password" id="password" name="password" class="form-input text-sm" placeholder="Leave empty to keep">
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-slate-700/60 flex items-center justify-end gap-3">
+                <a href="{{ url_for('staff_events') }}" class="btn btn-secondary text-sm">Cancel</a>
+                <button type="submit" class="btn btn-primary text-sm font-semibold px-5">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 {% endblock %}

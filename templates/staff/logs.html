@@ -1,77 +1,119 @@
 {% extends "layout.html" %}
 
-{% block title %}Event Logs - QMS{% endblock %}
+{% block title %}Attendee Passes & Gate Logs - {{ event['event_name'] }} - EventPass{% endblock %}
 
 {% block header_button %}
 {% include 'components/user_header.html' %}
 {% endblock %}
 
 {% block content %}
-<div class="mb-6">
-    <a href="{% if user and user.role == 'staff' %}{{ url_for('staff_events') }}{% else %}{{ url_for('superadmin_dashboard') }}{% endif %}"
-        class="text-blue-400 hover:text-blue-300 hover:underline">&larr; Back to Dashboard</a>
-    <h2 class="text-3xl font-semibold mt-2 text-gray-100">Event Logs: <span class="text-blue-300">{{ event['event_name']
-            }}</span></h2>
+<div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+        <a href="{% if user and user.role == 'staff' %}{{ url_for('staff_events') }}{% else %}{{ url_for('superadmin_dashboard') }}{% endif %}"
+            class="text-sm font-medium text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i> Back to Dashboard
+        </a>
+        <div class="flex items-center gap-3 mt-2">
+            <h2 class="text-2xl md:text-3xl font-bold text-white tracking-tight">{{ event['event_name'] }}</h2>
+            <span class="text-xs font-mono text-slate-400 bg-slate-800 px-2.5 py-1 rounded-md">ID: {{ event['event_id'] }}</span>
+        </div>
+        <p class="text-slate-400 text-xs mt-1">Real-time attendee pass registrations & camera verification records.</p>
+    </div>
+
+    <!-- Live Scanner CTA -->
+    <div class="flex items-center gap-2">
+        <a href="/scanner/{{ event['event_id'] }}" class="btn btn-emerald text-xs py-2 px-3 font-semibold shadow-md shadow-emerald-500/20">
+            <i data-lucide="camera" class="w-4 h-4"></i> Open Live Camera Scanner
+        </a>
+        <a href="/api/event/{{ event['event_id'] }}/export" class="btn btn-outline text-xs py-2 px-3" download>
+            <i data-lucide="download" class="w-4 h-4"></i> Export CSV
+        </a>
+    </div>
 </div>
 
 <div class="card p-6 md:p-8">
-    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-        <h3 class="text-2xl font-semibold text-white">Processed Logs</h3>
-        <div class="flex items-center flex-wrap gap-4 md:gap-6">
-            <div class="flex items-center gap-2 text-gray-300" title="Queue Status">
-                <i data-lucide="database" class="w-5 h-5 cursor-pointer"></i>
-                <span id="queue-status-light" class="w-3 h-3 bg-gray-400 rounded-full transition-all"></span>
-                <span class="text-sm">Queue: <b id="queue-size" class="font-mono text-lg text-white">0</b></span>
-            </div>
-            <div class="flex items-center gap-2 text-gray-300" title="Logs Processed">
-                <i data-lucide="check-circle" class="w-5 h-5" style="color: var(--cyber-green);"></i>
-                <span class="text-sm">Processed: <b id="processed-count" class="font-mono text-lg text-white">{{
-                        log_count }}</b></span>
-            </div>
-            <a href="/api/event/{{ event['event_id'] }}/export" class="btn btn-cyber-green text-xs md:text-sm py-2 px-3 flex items-center gap-1.5" download>
-                <i data-lucide="download" class="w-4 h-4"></i> Export CSV
-            </a>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 pb-4 border-b border-slate-800">
+        <div>
+            <h3 class="text-lg font-bold text-white">Attendee Passes & Records</h3>
+            <span class="text-xs text-slate-400">Total registered: <b id="processed-count" class="font-mono text-white">{{ log_count }}</b></span>
+        </div>
+        <div class="w-full sm:w-auto">
+            <input type="text" id="logSearch" onkeyup="filterLogs()" placeholder="Search by name, pass token, email..."
+                class="w-full sm:w-72 px-4 py-2 form-input text-xs">
         </div>
     </div>
-    <div class="mb-5">
-        <input type="text" id="logSearch" onkeyup="filterLogs()" placeholder="Search logs by any field..."
-            class="w-full px-4 py-3 form-input">
-    </div>
-    <div class="overflow-x-auto rounded-lg border border-gray-700">
-        <table class="min-w-full divide-y divide-gray-700 dark-table">
-            <thead>
+
+    <div class="overflow-x-auto rounded-xl border border-slate-800">
+        <table class="min-w-full divide-y divide-slate-800 text-xs text-left">
+            <thead class="bg-slate-900/90 text-slate-400 uppercase font-mono text-[11px]">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Timestamp</th>
+                    <th class="px-5 py-3 font-semibold">Pass ID</th>
+                    <th class="px-5 py-3 font-semibold">Gate Status</th>
                     {% for field in fields %}
-                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">{{ field['field_label']
-                        }}</th>
+                    <th class="px-5 py-3 font-semibold">{{ field['field_label'] }}</th>
                     {% endfor %}
-                    <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Actions</th>
+                    <th class="px-5 py-3 font-semibold">Registered At</th>
+                    <th class="px-5 py-3 font-semibold text-right">Actions</th>
                 </tr>
             </thead>
-            <tbody id="log-display">
+            <tbody id="log-display" class="divide-y divide-slate-800/80 bg-slate-950/40">
                 {% if logs %}
                 {% for log in logs %}
-                <tr class="log-row" data-log-id="{{ log['log_id'] }}">
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">{{ log['timestamp'] | timestamp_format }}</td>
+                <tr class="log-row hover:bg-slate-900/40 transition-colors" data-log-id="{{ log['log_id'] }}">
+                    <!-- Pass ID -->
+                    <td class="px-5 py-3.5 whitespace-nowrap font-mono text-blue-400 font-semibold">
+                        <a href="/pass/{{ log['ticket_token'] }}" target="_blank" class="hover:underline flex items-center gap-1">
+                            {{ log['ticket_token'] }} <i data-lucide="external-link" class="w-3 h-3 text-slate-500"></i>
+                        </a>
+                    </td>
+
+                    <!-- Status -->
+                    <td class="px-5 py-3.5 whitespace-nowrap">
+                        {% if log['status'] == 'checked_in' %}
+                        <span class="badge-checked px-2 py-0.5 rounded text-[11px] font-bold font-mono inline-flex items-center gap-1" title="Checked in at {{ log['checked_in_at'] }}">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Checked In
+                        </span>
+                        {% else %}
+                        <span class="badge-pending px-2 py-0.5 rounded text-[11px] font-medium font-mono inline-block">
+                            Registered
+                        </span>
+                        {% endif %}
+                    </td>
+
+                    <!-- Dynamic Fields -->
                     {% for field in fields %}
-                    <td class="px-6 py-4 whitespace-nowrap text-sm data-cell">
+                    <td class="px-5 py-3.5 whitespace-nowrap text-slate-200">
                         {{ log['data'].get(field['field_label'], 'N/A') }}
                     </td>
                     {% endfor %}
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <form action="{{ url_for('delete_log', log_id=log['log_id'], event_id=event['event_id']) }}"
-                            method="POST">
-                            <button type="submit"
-                                class="text-red-400 hover:text-red-300 text-sm font-medium hover:underline">Delete</button>
-                        </form>
+
+                    <!-- Timestamp -->
+                    <td class="px-5 py-3.5 whitespace-nowrap text-slate-400 font-mono text-[11px]">
+                        {{ log['timestamp'] | timestamp_format }}
+                    </td>
+
+                    <!-- Actions -->
+                    <td class="px-5 py-3.5 whitespace-nowrap text-right">
+                        <div class="inline-flex items-center gap-2">
+                            <button type="button" onclick="toggleCheckin({{ log['log_id'] }})" class="btn btn-outline text-[11px] py-1 px-2.5 h-7" title="Toggle Check-in Status">
+                                {% if log['status'] == 'checked_in' %}Undo{% else %}Check In{% endif %}
+                            </button>
+                            <form action="{{ url_for('delete_log', log_id=log['log_id'], event_id=event['event_id']) }}" method="POST" class="inline" onsubmit="return confirm('Delete this attendee pass?');">
+                                <button type="submit" class="btn btn-danger text-[11px] py-1 px-2 h-7" title="Delete Pass">
+                                    <i data-lucide="trash-2" class="w-3 h-3"></i>
+                                </button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
                 {% else %}
                 <tr id="no-logs-row">
-                    <td colspan="{{ fields | length + 2 }}" class="px-6 py-10 text-center text-gray-400">No logs
-                        processed yet.</td>
+                    <td colspan="{{ fields | length + 4 }}" class="px-6 py-12 text-center text-slate-500">
+                        <i data-lucide="ticket" class="w-10 h-10 mx-auto mb-2 text-slate-600"></i>
+                        <p class="text-sm font-medium text-slate-300">No attendee passes issued yet.</p>
+                        <p class="text-xs text-slate-500 mt-1">Share the public pass registration link to start accepting attendees.</p>
+                    </td>
                 </tr>
                 {% endif %}
             </tbody>
@@ -82,136 +124,34 @@
 
 {% block scripts %}
 <script>
-    const FIELDS = {{ fields | tojson }};
     const EVENT_ID = {{ event['event_id'] }};
-    let lastLogId = 0;
-
-    function fetchQueueSize() {
-        fetch('/queue_status')
-            .then(response => response.json())
-            .then(data => {
-                const queueSizeEl = document.getElementById('queue-size');
-                const queueStatusLightEl = document.getElementById('queue-status-light');
-                if (!queueSizeEl || !queueStatusLightEl) return;
-                queueSizeEl.textContent = data.size;
-                if (data.size > 0) {
-                    queueStatusLightEl.className = 'w-3 h-3 bg-yellow-500 rounded-full animate-pulse';
-                    queueStatusLightEl.title = "Processing queue...";
-                } else {
-                    queueStatusLightEl.className = 'w-3 h-3 bg-cyber-green rounded-full shadow-cyber-green';
-                    queueStatusLightEl.title = "Queue empty.";
-                }
-            });
-    }
-
-    function createLogRowHTML(log) {
-        let dataCells = '';
-        FIELDS.forEach(field => {
-            const value = log.data[field.field_label] || 'N/A';
-            const escapedValue = String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            dataCells += `<td class="px-6 py-4 whitespace-nowrap text-sm data-cell">${escapedValue}</td>`;
-        });
-
-        // Use standard URL construction if possible, or relative path
-        const deleteUrl = `/staff/log/delete/${log.log_id}/${EVENT_ID}`;
-
-        return `
-        <tr class="log-row log-row-new" data-log-id="${log.log_id}">
-            <td class="px-6 py-4 whitespace-nowrap text-sm">${log.formatted_timestamp}</td>
-            ${dataCells}
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
-                <form action="${deleteUrl}" method="POST">
-                    <button type="submit" class="text-red-400 hover:text-red-300 text-sm font-medium hover:underline">Delete</button>
-                </form>
-            </td>
-        </tr>`;
-    }
-
-    async function fetchNewLogs() {
-        const firstRow = document.querySelector('#log-display .log-row');
-        if (firstRow) {
-            lastLogId = parseInt(firstRow.dataset.logId) || 0;
-        }
-
-        try {
-            const response = await fetch(`/api/event/${EVENT_ID}/logs?since=${lastLogId}`);
-            if (!response.ok) return;
-            const data = await response.json();
-            const logs = data.logs;
-            if (logs.length > 0) {
-                const tableBody = document.getElementById('log-display');
-                const noLogsRow = document.getElementById('no-logs-row');
-                const processedCountEl = document.getElementById('processed-count');
-                if (noLogsRow) noLogsRow.style.display = 'none';
-
-                // We want to PREPEND new logs, but if lastLogId logic is "since", usually means newer than top?
-                // The original code used insertAdjacentHTML('afterbegin', ...) which puts it at the TOP.
-                // It assumes logs are returned in ascending or descending?
-                // Logic: "since=LAST_SEEN_ID". If API returns newer logs, they should go on top.
-                // But usually DB IDs increase. If we fetch log_id > 100, we get 101, 102.
-                // If we put 101, 102 at 'afterbegin', 102 will be above 101 if we iterate normally?
-                // Or we iterate the array. If array is [101, 102], and we append 101 then 102 to top -> 102, 101.
-                // Let's assume the API returns sorted.
-
-                logs.forEach(log => {
-                    const newRowHTML = createLogRowHTML(log);
-                    tableBody.insertAdjacentHTML('afterbegin', newRowHTML);
-                });
-
-                if (processedCountEl) {
-                    const currentCount = parseInt(processedCountEl.textContent) || 0;
-                    processedCountEl.textContent = currentCount + logs.length;
-                }
-            }
-        } catch (e) {
-            console.error("Error fetching logs:", e);
-        }
-    }
-    if (window.__logsInterval) clearInterval(window.__logsInterval);
-    window.__logsInterval = setInterval(() => {
-        fetchQueueSize();
-        fetchNewLogs();
-    }, 3000);
-    fetchQueueSize();
 
     window.filterLogs = function filterLogs() {
-        let input, filter, tbody, tr, td, i, txtValue;
-        input = document.getElementById("logSearch");
-        filter = input.value.toUpperCase();
-        tbody = document.getElementById("log-display");
-        tr = tbody.getElementsByClassName("log-row");
-        let noLogsRow = document.getElementById("no-logs-row");
+        const input = document.getElementById("logSearch").value.toUpperCase();
+        const rows = document.querySelectorAll("#log-display .log-row");
         let visibleCount = 0;
 
-        for (i = 0; i < tr.length; i++) {
-            // Check all cells
-            td = tr[i].getElementsByTagName("td");
-            let rowText = "";
-            for (let j = 0; j < td.length - 1; j++) { // Skip actions column
-                if (td[j]) {
-                    rowText += td[j].textContent || td[j].innerText;
-                }
-            }
-            if (rowText.toUpperCase().indexOf(filter) > -1) {
-                tr[i].classList.remove("hidden");
+        rows.forEach(row => {
+            const text = row.innerText.toUpperCase();
+            if (text.indexOf(input) > -1) {
+                row.style.display = "";
                 visibleCount++;
             } else {
-                tr[i].classList.add("hidden");
+                row.style.display = "none";
             }
-        }
-        if (noLogsRow) {
-            if (visibleCount === 0 && tr.length > 0) {
-                noLogsRow.classList.remove("hidden");
-                noLogsRow.getElementsByTagName("td")[0].textContent = "No logs match your search.";
-                noLogsRow.style.display = 'table-row';
-            } else if (tr.length === 0) {
-                noLogsRow.classList.remove("hidden");
-                noLogsRow.getElementsByTagName("td")[0].textContent = "No logs processed yet.";
-                noLogsRow.style.display = 'table-row';
-            } else {
-                noLogsRow.style.display = 'none';
+        });
+    };
+
+    window.toggleCheckin = async function(logId) {
+        try {
+            const res = await fetch(`/api/checkin/toggle/${logId}`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
             }
+        } catch(e) {
+            console.error("Toggle error:", e);
         }
-    }
+    };
 </script>
 {% endblock %}

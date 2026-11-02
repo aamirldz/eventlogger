@@ -1,35 +1,139 @@
 {% extends "layout.html" %}
 
-{% block title %}Attendance Logged - QMS{% endblock %}
+{% block title %}Digital Event Pass - {{ event['event_name'] }} - EventPass{% endblock %}
 
 {% block content %}
-<div class="card p-8 md:p-12 max-w-lg mx-auto text-center">
-    <!-- Success Icon -->
-    <div class="mb-6">
-        <div
-            class="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-green-500/30">
-            <svg class="w-14 h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
-            </svg>
+<div class="max-w-md mx-auto py-4">
+    <!-- Notice Banner -->
+    <div class="mb-5 text-center no-print">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mb-2">
+            <i data-lucide="check-circle" class="w-3.5 h-3.5"></i> PASS ISSUED SUCCESSFULLY
+        </span>
+        <h2 class="text-2xl font-bold text-white tracking-tight">Your Digital Event Pass</h2>
+        <p class="text-slate-400 text-xs mt-1">Show this QR pass at the entrance gate scanner for instant verification.</p>
+    </div>
+
+    <!-- Digital Boarding Pass Ticket Container -->
+    <div class="ticket-container bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl relative overflow-hidden">
+        <!-- Ticket Header (Brand & Event) -->
+        <div class="p-6 bg-gradient-to-br from-slate-800/90 via-slate-900 to-slate-950 border-b border-slate-800">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-blue-500/30">
+                        EP
+                    </div>
+                    <span class="text-xs font-mono font-semibold tracking-wider text-slate-300 uppercase">OFFICIAL PASS</span>
+                </div>
+                <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono uppercase tracking-wider {% if status == 'checked_in' %}bg-emerald-500/20 text-emerald-400 border border-emerald-500/30{% else %}bg-blue-500/20 text-blue-300 border border-blue-500/30{% endif %}">
+                    {% if status == 'checked_in' %}CHECKED IN{% else %}VALID PASS{% endif %}
+                </span>
+            </div>
+
+            <h3 class="text-xl font-bold text-white leading-tight mb-2">{{ event['event_name'] }}</h3>
+
+            <div class="grid grid-cols-2 gap-3 text-xs text-slate-400 pt-2 border-t border-slate-800/80">
+                <div>
+                    <span class="text-[10px] text-slate-500 block uppercase font-mono">Date & Time</span>
+                    <span class="font-medium text-slate-300">{{ event['event_date'] if event['event_date'] else timestamp }}</span>
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-500 block uppercase font-mono">Gate / Venue</span>
+                    <span class="font-medium text-slate-300">{{ event['venue'] if event['venue'] else 'Main Hall' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ticket Middle (Attendee Information) -->
+        <div class="p-6 bg-slate-900/90 relative">
+            <!-- Cutout Notches for Ticket Effect -->
+            <div class="ticket-notch-left"></div>
+            <div class="ticket-notch-right"></div>
+
+            <div class="mb-4">
+                <span class="text-[10px] font-mono uppercase tracking-wider text-slate-500 block">Attendee Name</span>
+                <span class="text-2xl font-bold text-white block mt-0.5">{{ attendee_name }}</span>
+            </div>
+
+            <!-- Dynamic Fields (e.g. Email, Roll No) -->
+            <div class="grid grid-cols-2 gap-3 text-xs pt-3 border-t border-slate-800">
+                {% for key, val in data %}
+                {% if key != 'Full Name' and key != 'Name' and val %}
+                <div>
+                    <span class="text-[10px] text-slate-500 block uppercase font-mono">{{ key }}</span>
+                    <span class="font-medium text-slate-300 truncate block">{{ val }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Perforation Tear Line -->
+        <div class="ticket-perforation"></div>
+
+        <!-- Ticket Footer (High-Res SVG QR Code Scanner Section) -->
+        <div class="p-6 bg-slate-950 text-center flex flex-col items-center justify-center">
+            <!-- White high-contrast box for effortless camera recognition -->
+            <div class="p-3 bg-white rounded-xl shadow-inner mb-3 w-48 h-48 flex items-center justify-center">
+                {% if qr_svg %}
+                <div class="w-full h-full [&>svg]:w-full [&>svg]:h-full">
+                    {{ qr_svg | safe }}
+                </div>
+                {% else %}
+                <img src="/qr_token/{{ ticket_token }}" class="w-full h-full object-contain" alt="QR Pass">
+                {% endif %}
+            </div>
+
+            <!-- Pass ID Code -->
+            <div class="flex items-center justify-center gap-2 mb-1">
+                <span class="text-xs font-mono font-bold text-slate-300 tracking-wider bg-slate-900 border border-slate-800 px-3 py-1 rounded-md" id="pass-token-display">
+                    {{ ticket_token }}
+                </span>
+                <button type="button" onclick="copyPassToken()" class="btn btn-outline text-xs p-1.5 h-7 w-7 no-print" title="Copy Pass Code">
+                    <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                </button>
+            </div>
+            <span class="text-[10px] text-slate-500 uppercase tracking-widest font-mono">SCAN AT GATE FOR ACCESS</span>
         </div>
     </div>
 
-    <!-- Success Message -->
-    <h2 class="text-3xl font-bold mb-3 text-white">Attendance Logged!</h2>
-    <p class="text-gray-300 text-lg mb-2">Your attendance has been successfully recorded.</p>
-    <p class="text-gray-400 mb-8">Event: <span class="text-blue-300 font-semibold">{{ event['event_name'] }}</span></p>
+    <!-- Action Buttons (Print / Share / Download) -->
+    <div class="mt-6 flex flex-col gap-3 no-print">
+        <div class="grid grid-cols-2 gap-3">
+            <button type="button" onclick="window.print()" class="btn btn-emerald py-2.5 text-xs">
+                <i data-lucide="printer" class="w-4 h-4"></i> Print Pass / PDF
+            </button>
+            <button type="button" onclick="sharePassLink()" class="btn btn-outline py-2.5 text-xs" id="btn-share">
+                <i data-lucide="share-2" class="w-4 h-4"></i> Share Pass Link
+            </button>
+        </div>
 
-    <!-- Timestamp -->
-    <div class="bg-gray-800/50 rounded-lg p-4 border border-gray-700 mb-8">
-        <p class="text-sm text-gray-400">Logged at</p>
-        <p class="text-xl font-mono text-green-400">{{ timestamp }}</p>
-    </div>
-
-    <!-- Actions -->
-    <div>
-        <a href="{{ url_for('attend_event', event_id=event['event_id']) }}" class="btn btn-cyber-green w-full py-3">
-            Submit Another Entry
-        </a>
+        <div class="text-center mt-2">
+            <a href="{{ url_for('attend_event', event_id=event['event_id']) }}" class="text-xs text-slate-400 hover:text-white transition-colors">
+                &larr; Register another attendee
+            </a>
+        </div>
     </div>
 </div>
+
+<script>
+function copyPassToken() {
+    const token = document.getElementById('pass-token-display').innerText.trim();
+    navigator.clipboard.writeText(token);
+    alert('Pass token copied: ' + token);
+}
+
+function sharePassLink() {
+    const url = window.location.href;
+    if (navigator.share) {
+        navigator.share({
+            title: '{{ event["event_name"] }} Pass',
+            text: 'My digital ticket pass for {{ event["event_name"] }}',
+            url: url
+        }).catch(() => {});
+    } else {
+        navigator.clipboard.writeText(url);
+        alert('Pass link copied to clipboard!\nOpen this link on your phone to present at the gate.');
+    }
+}
+</script>
 {% endblock %}

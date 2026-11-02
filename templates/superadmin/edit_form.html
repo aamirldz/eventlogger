@@ -1,71 +1,114 @@
 {% extends "layout.html" %}
 
-{% block title %}Edit Event Form - QMS{% endblock %}
+{% block title %}Configure Form Fields - EventPass Enterprise{% endblock %}
 
 {% block header_button %}
 {% include 'components/user_header.html' %}
 {% endblock %}
 
 {% block content %}
-<h2 class="text-3xl font-semibold mb-2 text-gray-100">Edit Event Form</h2>
-<p class="text-gray-300 mb-8">You are editing the form for <b class="text-blue-300">{{ event['event_name'] }}</b>.</p>
+<div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <div class="flex items-center gap-2 text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1">
+            <a href="{{ url_for('superadmin_dashboard') }}" class="hover:underline">Dashboard</a>
+            <span>/</span>
+            <span>Registration Form Builder</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Form Configuration</h1>
+        <p class="text-sm text-slate-400 mt-1">Configure attendee fields for <b class="text-indigo-300 font-semibold">{{ event['event_name'] }}</b>.</p>
+    </div>
+    <a href="{{ url_for('superadmin_dashboard') }}" class="btn btn-secondary self-start sm:self-auto inline-flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Back to Events
+    </a>
+</div>
 
-<div class="card p-8 mb-8">
-    <h3 class="text-2xl font-semibold mb-4 text-white">Current Form Fields</h3>
-    <div class="space-y-3 max-h-96 overflow-y-auto pr-2">
-        {% if fields %}
-        {% for field in fields %}
-        <div class="p-4 border border-gray-700 rounded-lg bg-gray-800/50 flex justify-between items-center">
-            <div>
-                <span class="font-semibold text-gray-100">{{ field['field_label'] }}</span>
-                <span class="text-sm text-gray-400 ml-2">({{ field['field_type'] }}{% if field['is_required'] %},
-                    required{% endif %})</span>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Existing Fields List -->
+    <div class="lg:col-span-2">
+        <div class="card p-6">
+            <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-700/60">
+                <div>
+                    <h2 class="text-lg font-bold text-white">Attendee Form Fields</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">These inputs appear on the public registration page</p>
+                </div>
+                <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    {{ fields | length }} field(s)
+                </span>
             </div>
-            <form action="{{ url_for('superadmin_delete_field', field_id=field['field_id']) }}" method="POST">
-                <button type="submit"
-                    class="text-red-400 hover:text-red-300 text-sm font-medium hover:underline">Delete</button>
+
+            <div class="space-y-3">
+                {% if fields %}
+                {% for field in fields %}
+                <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-700/70 hover:border-slate-600 transition flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-mono text-xs font-bold">
+                            {{ loop.index }}
+                        </div>
+                        <div>
+                            <div class="font-semibold text-slate-100 text-sm flex items-center gap-2">
+                                {{ field['field_label'] }}
+                                {% if field['is_required'] %}
+                                <span class="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Required</span>
+                                {% else %}
+                                <span class="text-[10px] uppercase font-medium text-slate-500">Optional</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-xs text-slate-400 font-mono mt-0.5">
+                                Type: <span class="text-slate-300">{{ field['field_type'] }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <form action="{{ url_for('superadmin_delete_field', field_id=field['field_id']) }}" method="POST" onsubmit="return confirm('Remove field: {{ field['field_label'] }}?');">
+                        <button type="submit" class="px-3 py-1.5 text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-600 rounded-lg border border-rose-500/30 transition flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            Remove
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-center py-12 border-2 border-dashed border-slate-700/60 rounded-xl">
+                    <p class="text-sm text-slate-400">No custom fields added yet.</p>
+                    <p class="text-xs text-slate-500 mt-1">Use the panel on the right to add fields like "Full Name", "Roll Number", "Email".</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Field Form -->
+    <div class="lg:col-span-1">
+        <div class="card p-6 sticky top-20">
+            <h2 class="text-base font-bold text-white mb-1">Add New Field</h2>
+            <p class="text-xs text-slate-400 mb-4">Define a new input for the registration form</p>
+
+            <form action="{{ url_for('superadmin_edit_event_form', event_id=event['event_id']) }}" method="POST" class="space-y-4">
+                <div>
+                    <label for="field_label" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Field Label</label>
+                    <input type="text" id="field_label" name="field_label" class="form-input text-sm" placeholder="e.g. Student ID / Roll No." required>
+                </div>
+                <div>
+                    <label for="field_type" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Input Type</label>
+                    <select id="field_type" name="field_type" class="form-input text-sm">
+                        <option value="text">Text (Single Line)</option>
+                        <option value="email">Email Address</option>
+                        <option value="tel">Phone / Contact</option>
+                        <option value="number">Number</option>
+                    </select>
+                </div>
+                <div class="pt-1">
+                    <label class="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input type="checkbox" id="is_required" name="is_required" value="1" class="w-4 h-4 rounded text-indigo-600 bg-slate-900 border-slate-700 focus:ring-indigo-500" checked>
+                        <span class="text-xs font-semibold text-slate-300">Mandatory (Required Field)</span>
+                    </label>
+                </div>
+                <button type="submit" class="w-full btn btn-primary py-2.5 text-sm font-semibold flex items-center justify-center gap-2 mt-4">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Add Form Field
+                </button>
             </form>
         </div>
-        {% endfor %}
-        {% else %}
-        <p class="text-gray-400">No fields added yet. This form will be empty.</p>
-        {% endif %}
     </div>
-</div>
-
-<div class="card p-8">
-    <h3 class="text-2xl font-semibold mb-5 text-white">Add New Field</h3>
-    <form action="{{ url_for('superadmin_edit_event_form', event_id=event['event_id']) }}" method="POST">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-5">
-            <div>
-                <label for="field_label" class="block text-sm font-medium text-gray-300 mb-2">Field Label</label>
-                <input type="text" id="field_label" name="field_label" class="w-full px-4 py-3 form-input"
-                    placeholder="e.g., Full Name" required>
-            </div>
-            <div>
-                <label for="field_type" class="block text-sm font-medium text-gray-300 mb-2">Field Type</label>
-                <select id="field_type" name="field_type" class="w-full px-4 py-3 form-input appearance-none">
-                    <option value="text">Text (Short Answer)</option>
-                    <option value="email">Email</option>
-                    <option value="tel">Phone Number</option>
-                    <option value="number">Number</option>
-                </select>
-            </div>
-            <div class="flex items-end pb-2">
-                <label class="flex items-center cursor-pointer">
-                    <input type="checkbox" id="is_required" name="is_required" value="1"
-                        class="h-5 w-5 text-blue-500 bg-gray-700 border-gray-600 rounded" checked>
-                    <span class="ml-3 text-sm font-medium text-gray-300">Required?</span>
-                </label>
-            </div>
-        </div>
-        <button type="submit" class="w-full md:w-auto btn btn-cyber-green py-3">
-            Add Field
-        </button>
-    </form>
-</div>
-<div class="mt-8">
-    <a href="{{ url_for('superadmin_dashboard') }}" class="text-blue-400 hover:text-blue-300 hover:underline">&larr;
-        Back to Super Admin Dashboard</a>
 </div>
 {% endblock %}
