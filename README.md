@@ -1,57 +1,102 @@
 # EventLogger QMS
 
-A robust Event Logging and Queue Management System built with Flask.
+A high-performance Event Logging, Dynamic Registration & Attendance Management System built with **Hono** and **Cloudflare Workers (D1 SQLite Database)**.
 
-## Features
-- **Super Admin Dashboard**: Create events, manage admins, design forms dynamically.
-- **Admin Dashboard**: View assigned events, monitor live logs.
-- **Dynamic Forms**: Admins can create custom fields for each event.
-- **QR Code Attendance**: Automatically generates QR codes for events.
-- **Live Logging**: Real-time log monitoring with background processing.
-- **Responsive UI**: "Cyber/Tech" themed UI using Tailwind CSS and Framer Motion.
+---
 
-## Installation
+## 🌟 Key Features & USPs
 
-1.  Clone the repository.
-2.  Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  Run the application:
-    ```bash
-    python app.py
-    ```
-    Or use Gunicorn:
-    ```bash
-    gunicorn app:app
-    ```
-4.  Open `http://localhost:5002`.
-5.  **Default Credentials**:
-    -   **Username**: `admin`
-    -   **Password**: `admin`
+- **Super Admin Command Center**:
+  - Create and manage campus events.
+  - Approve or reject pending staff registrations.
+  - Assign approved staff organizers to specific events.
+  - Dynamically customize form fields per event (Text, Email, Phone, Number, Required validation).
+- **Dynamic QR Code Attendance**:
+  - Automatically generates sharp SVG QR codes for each event.
+  - Zero external network dependencies for offline/local reliability.
+  - Instant direct attendance link generation.
+- **Live Logs & Real-Time Monitoring**:
+  - Live polling dashboard showing student responses in real time.
+  - Dynamic client-side search/filter across any custom field.
+  - Single-click **CSV Export** to download attendee records as an Excel-ready spreadsheet.
+- **Cyber / Tech Themed UI**:
+  - Responsive dark-mode interface built with Tailwind CSS, animated stars background, and 3D Spline elements.
+- **Serverless & Edge Ready**:
+  - Powered by Hono + Cloudflare Workers + D1 database for sub-10ms global latency.
 
-## Deployment
+---
 
-### GitHub
-1.  Initialize git: `git init`
-2.  Add files: `git add .`
-3.  Commit: `git commit -m "Initial commit"`
-4.  Push to your repository.
+## 🚀 Quick Start Guide
 
-### Hosting Suggestions
-This is a **Python/Flask** application with a **SQLite** database and local file uploads.
+### 1. Prerequisites
+- **Node.js** (v18 or higher)
+- **npm**
 
--   **Render / Railway / Fly.io**: Best options. They support Python apps easily.
-    -   *Note*: SQLite and `uploads/` are **ephemeral** on many free tiers (data is lost on restart).
-    -   **Production Recommendation**: Use a persistent volume (Railway/Render allow this) OR switch to PostgreSQL/S3 for storage.
--   **Cloudflare**:
-    -   **Cloudflare Pages**: Cannot host this (it's for static sites).
-    -   **Cloudflare Workers**: Supports Python but requires significant changes to code structure.
-    -   **Recommendation**: Host on Railway/Render, and use Cloudflare for DNS/CDN/DDoS protection.
+### 2. Installation
+```bash
+# Clone the repository
+git clone https://github.com/aamirldz/eventlogger.git
+cd eventlogger
 
-## Project Structure
--   `app.py`: Main application logic.
--   `templates/`: HTML templates.
--   `static/`: CSS, JS, images.
--   `uploads/`: User uploaded profile pics.
--   `event.db`: SQLite database.
+# Install dependencies
+npm install
+```
+
+### 3. Initialize Local D1 Database
+Execute the database schema locally:
+```bash
+npx wrangler d1 execute eventlogger-db --local --file=schema.sql
+```
+
+### 4. Run Development Server
+```bash
+npm run dev
+# Or: npx wrangler dev --port 8787
+```
+
+Open your browser at **`http://localhost:8787`**.
+
+---
+
+## 🔑 Default Credentials
+
+| Role | Username | Password |
+|---|---|---|
+| **Super Admin** | `admin` | `admin` |
+
+*Staff can register from the `/register` page and must be approved by the Super Admin before logging in.*
+
+---
+
+## 📂 Project Structure
+
+```text
+├── src/
+│   └── index.js          # Core Hono application & Jinja-compatible template engine
+├── templates/            # HTML templates (Layout, Admin, Staff, Attend, Logs)
+│   ├── components/       # Reusable components (Robot, User Header)
+│   ├── staff/            # Staff dashboard, event list, live logs
+│   └── superadmin/       # Admin dashboard, staff manager, form editor
+├── static/
+│   └── css/style.css     # Cyber theme CSS
+├── schema.sql            # SQLite / Cloudflare D1 database schema
+├── wrangler.toml         # Cloudflare Workers configuration
+└── package.json          # Node dependencies and scripts
+```
+
+---
+
+## ☁️ Deployment (Cloudflare Workers)
+
+1. Create your remote D1 database:
+   ```bash
+   npx wrangler d1 create eventlogger-db
+   ```
+2. Apply the schema remotely:
+   ```bash
+   npx wrangler d1 execute eventlogger-db --remote --file=schema.sql
+   ```
+3. Deploy:
+   ```bash
+   npm run deploy
+   ```

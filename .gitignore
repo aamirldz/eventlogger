@@ -1,9 +1,11 @@
-__pycache__/
-*.py[cod]
-*$py.class
-*.db
+node_modules/
+.wrangler/
+worker-configuration.d.ts
 .DS_Store
+*.db
 uploads/
 .env
+__pycache__/
+*.py[cod]
 venv/
 env/
