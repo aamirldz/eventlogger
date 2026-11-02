@@ -4,6 +4,42 @@ import QRCode from 'qrcode';
 
 const app = new Hono();
 
+app.onError((err, c) => {
+    console.error('Unhandled Error:', err);
+    if (err.message && (err.message.includes('daily row read limit') || err.message.includes('exceeded D1'))) {
+        return c.html(`
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Cloudflare D1 Quota Notice - EventLogger</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+                <style>body { background: #090a0f; color: #e0e0e0; font-family: 'Inter', sans-serif; }</style>
+            </head>
+            <body class="min-h-screen flex items-center justify-center p-4">
+                <div class="max-w-md w-full bg-gray-900/90 border border-yellow-500/40 rounded-2xl p-8 text-center shadow-2xl backdrop-blur-md">
+                    <div class="w-16 h-16 bg-yellow-500/20 text-yellow-400 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl font-bold">⚠️</div>
+                    <h2 class="text-2xl font-bold text-white mb-2">Cloudflare D1 Quota Limit</h2>
+                    <p class="text-gray-300 text-sm mb-4">
+                        Your Cloudflare account's free tier daily row read limit has been reached today by your active apps.
+                    </p>
+                    <div class="bg-yellow-950/40 border border-yellow-700/50 p-3 rounded-lg mb-6 text-xs font-mono text-yellow-300">
+                        Resets automatically at 00:00 UTC (~5.5 hours)
+                    </div>
+                    <div class="text-left bg-gray-800/80 p-4 rounded-lg text-xs text-gray-300 space-y-2 border border-gray-700">
+                        <p class="font-semibold text-white">💻 For immediate unlimited local testing & demo:</p>
+                        <code class="block text-green-400 font-mono bg-black/60 p-2.5 rounded">npm run dev</code>
+                        <p class="text-gray-400 text-[11px]">Opens at <code>http://localhost:8787</code> with simulated local D1.</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `, 503);
+    }
+    return c.text(`Unhandled Error: ${err.message}\n${err.stack}`, 500);
+});
+
 // ============================
 // TEMPLATES AS RAW HTML (imported as text modules)
 // ============================
