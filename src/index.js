@@ -530,7 +530,7 @@ function setSession(c, data) {
 }
 
 function clearSession(c) {
-    deleteCookie(c, 'session', { path: '/' });
+    deleteCookie(c, 'session', { path: '/', secure: true, httpOnly: true });
 }
 
 function getBaseUrl(c) {
@@ -618,6 +618,7 @@ function invalidateAllCaches() {
     MEMORY_CACHE.staffEvents.clear();
     MEMORY_CACHE.eventStaff.clear();
     MEMORY_CACHE.eventFields.clear();
+    MEMORY_CACHE.users.clear();
 }
 
 async function getUser(db, username) {
@@ -665,16 +666,21 @@ const handleLoginGet = async (c) => {
 const handleLoginPost = async (c) => {
     const body = await c.req.parseBody();
     const db = getDb(c);
-    const user = await getUser(db, body.username);
+    const username = (body.username || '').trim();
+    const password = (body.password || '').trim();
 
-    if (user && user.password === body.password) {
+    // Verify against fresh database record on authentication
+    MEMORY_CACHE.users.delete(username);
+    const user = await getUser(db, username);
+
+    if (user && user.password === password) {
         if (user.approved === 0) {
             return c.html(render('pending', { request: { path: '/pending' } }));
         }
         setSession(c, { username: user.username, role: user.role, name: user.name });
         return c.redirect(user.role === 'superadmin' ? '/superadmin' : '/staff/events');
     }
-    return c.html(render('login', { user: null, flash_messages: [{ category: 'error', message: 'Invalid credentials.' }], request: { path: '/' } }));
+    return c.html(render('login', { user: null, flash_messages: [{ category: 'error', message: 'Invalid credentials. Please verify your username and password.' }], request: { path: '/' } }));
 };
 
 app.get('/', handleLoginGet);
@@ -1029,6 +1035,8 @@ app.post('/superadmin/update', async (c) => {
     if (body.password) {
         await db.prepare("UPDATE users SET password = ? WHERE username = ?").bind(body.password, session.username).run();
     }
+    MEMORY_CACHE.users.delete(session.username);
+    invalidateAllCaches();
     return c.redirect('/superadmin/profile');
 });
 

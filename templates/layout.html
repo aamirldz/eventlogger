@@ -176,6 +176,8 @@
         document.addEventListener('submit', async function (e) {
             const form = e.target;
             if (form.method.toLowerCase() !== 'post' || form.enctype === 'multipart/form-data') return;
+            // Native submission for auth forms to ensure clean session cookies & browser password manager compatibility
+            if (form.id === 'login-form' || (form.action && (form.action.includes('/register') || form.action.includes('/login')))) return;
 
             e.preventDefault();
             htmlCache.clear();
